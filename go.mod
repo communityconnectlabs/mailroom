@@ -15,7 +15,7 @@ require (
 	github.com/go-sql-driver/mysql v1.4.1 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible
 	github.com/gorilla/schema v1.0.2
-	github.com/greatnonprofits-nfp/goflow v0.0.0-20191001153112-773244af34d9
+	github.com/greatnonprofits-nfp/goflow v0.41.15-0.20191122182028-c7baa8416e1d
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348 // indirect
 	github.com/lib/pq v1.0.0
@@ -37,3 +37,5 @@ require (
 	gopkg.in/go-playground/validator.v9 v9.21.0
 	gopkg.in/mail.v2 v2.3.1 // indirect
 )
+
+go 1.13
