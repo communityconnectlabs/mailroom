@@ -359,6 +359,11 @@
                     "type": "text"
                 },
                 {
+                    "key": "corrected",
+                    "help": "the input corrected by Bing Spell Checker",
+                    "type": "text"
+                },
+                {
                     "key": "input",
                     "help": "the input of the result",
                     "type": "text"
