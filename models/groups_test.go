@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/lib/pq"
 	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/goflow/utils/uuids"
-	"github.com/nyaruka/mailroom/search"
 	"github.com/nyaruka/mailroom/testsuite"
+
+	"github.com/lib/pq"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 )
@@ -52,8 +52,6 @@ func TestDynamicGroups(t *testing.T) {
 									   VALUES(TRUE, NOW(), NOW(), $1, 1000, 'W', 'F', -1, $2, 1, 1, $3, $4, 'I') RETURNING id`,
 		uuids.New(), DoctorRemindersCampaignID, FavoritesFlowID, JoinedFieldID)
 
-	fmt.Println(eventID)
-
 	// clear Cathy's value
 	testsuite.DB().MustExec(
 		`update contacts_contact set fields = fields - $2
@@ -70,7 +68,7 @@ func TestDynamicGroups(t *testing.T) {
 	org, err := GetOrgAssets(ctx, db, Org1)
 	assert.NoError(t, err)
 
-	esServer := search.NewMockElasticServer()
+	esServer := testsuite.NewMockElasticServer()
 	defer esServer.Close()
 
 	es, err := elastic.NewClient(

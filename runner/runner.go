@@ -24,6 +24,12 @@ const (
 	postCommitTimeout = time.Minute
 )
 
+var startTypeToOrigin = map[models.StartType]string{
+	models.StartTypeManual:    "ui",
+	models.StartTypeAPI:       "api",
+	models.StartTypeAPIZapier: "zapier",
+}
+
 // NewStartOptions creates and returns the default start options to be used for flow starts
 func NewStartOptions() *StartOptions {
 	start := &StartOptions{
@@ -53,15 +59,15 @@ type StartOptions struct {
 }
 
 // TriggerBuilder defines the interface for building a trigger for the passed in contact
-type TriggerBuilder func(contact *flows.Contact) (flows.Trigger, error)
+type TriggerBuilder func(contact *flows.Contact) flows.Trigger
 
 // ResumeFlow resumes the passed in session using the passed in session
-func ResumeFlow(ctx context.Context, db *sqlx.DB, rp *redis.Pool, org *models.OrgAssets, session *models.Session, resume flows.Resume, hook models.SessionCommitHook) (*models.Session, error) {
+func ResumeFlow(ctx context.Context, db *sqlx.DB, rp *redis.Pool, oa *models.OrgAssets, session *models.Session, resume flows.Resume, hook models.SessionCommitHook) (*models.Session, error) {
 	start := time.Now()
-	sa := org.SessionAssets()
+	sa := oa.SessionAssets()
 
 	// does the flow this session is part of still exist?
-	_, err := org.FlowByID(session.CurrentFlowID())
+	_, err := oa.FlowByID(session.CurrentFlowID())
 	if err != nil {
 		// if this flow just isn't available anymore, log this error
 		if err == models.ErrNotFound {
@@ -72,7 +78,7 @@ func ResumeFlow(ctx context.Context, db *sqlx.DB, rp *redis.Pool, org *models.Or
 	}
 
 	// build our flow session
-	fs, err := session.FlowSession(sa, org.Env())
+	fs, err := session.FlowSession(sa, oa.Env())
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to create session from output")
 	}
@@ -97,7 +103,7 @@ func ResumeFlow(ctx context.Context, db *sqlx.DB, rp *redis.Pool, org *models.Or
 	}
 
 	// write our updated session and runs
-	err = session.WriteUpdatedSession(txCTX, tx, rp, org, fs, sprint, hook)
+	err = session.WriteUpdatedSession(txCTX, tx, rp, oa, fs, sprint, hook)
 	if err != nil {
 		tx.Rollback()
 		return nil, errors.Wrapf(err, "error updating session for resume")
@@ -119,7 +125,7 @@ func ResumeFlow(ctx context.Context, db *sqlx.DB, rp *redis.Pool, org *models.Or
 		return nil, errors.Wrapf(err, "error starting transaction for post commit hooks")
 	}
 
-	err = models.ApplyEventPostCommitHooks(txCTX, tx, rp, org, []*models.Scene{session.Scene()})
+	err = models.ApplyEventPostCommitHooks(txCTX, tx, rp, oa, []*models.Scene{session.Scene()})
 	if err == nil {
 		err = tx.Commit()
 	}
@@ -151,13 +157,13 @@ func StartFlowBatch(
 	}
 
 	// create our org assets
-	org, err := models.GetOrgAssets(ctx, db, batch.OrgID())
+	oa, err := models.GetOrgAssets(ctx, db, batch.OrgID())
 	if err != nil {
 		return nil, errors.Wrapf(err, "error creating assets for org: %d", batch.OrgID())
 	}
 
 	// try to load our flow
-	flow, err := org.FlowByID(batch.FlowID())
+	flow, err := oa.FlowByID(batch.FlowID())
 	if err == models.ErrNotFound {
 		logrus.WithField("flow_id", batch.FlowID()).Info("skipping flow start, flow no longer active or archived")
 		return nil, nil
@@ -174,23 +180,31 @@ func StartFlowBatch(
 		}
 	}
 
+	// whether engine allows some functions is based on whether there is more than one contact being started
+	batchStart := batch.TotalContacts() > 1
+
 	// this will build our trigger for each contact started
-	triggerBuilder := func(contact *flows.Contact) (flows.Trigger, error) {
+	triggerBuilder := func(contact *flows.Contact) flows.Trigger {
 		if batch.ParentSummary() != nil {
-			trigger, err := triggers.NewFlowAction(org.Env(), flow.FlowReference(), contact, batch.ParentSummary())
-			if err != nil {
-				return nil, errors.Wrap(err, "unable to create flow action trigger")
+			tb := triggers.NewBuilder(oa.Env(), flow.FlowReference(), contact).FlowAction(batch.ParentSummary())
+			if batchStart {
+				tb = tb.AsBatch()
 			}
-			return trigger, nil
+			return tb.Build()
 		}
+
+		tb := triggers.NewBuilder(oa.Env(), flow.FlowReference(), contact).Manual()
 		if batch.Extra() != nil {
-			return triggers.NewManual(org.Env(), flow.FlowReference(), contact, params), nil
+			tb = tb.WithParams(params)
 		}
-		return triggers.NewManual(org.Env(), flow.FlowReference(), contact, nil), nil
+		if batchStart {
+			tb = tb.AsBatch()
+		}
+		return tb.WithUser(batch.CreatedBy()).WithOrigin(startTypeToOrigin[batch.StartType()]).Build()
 	}
 
 	// before committing our runs we want to set the start they are associated with
-	updateStartID := func(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, org *models.OrgAssets, sessions []*models.Session) error {
+	updateStartID := func(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, oa *models.OrgAssets, sessions []*models.Session) error {
 		// for each run in our sessions, set the start id
 		for _, s := range sessions {
 			for _, r := range s.Runs() {
@@ -208,7 +222,7 @@ func StartFlowBatch(
 	options.TriggerBuilder = triggerBuilder
 	options.CommitHook = updateStartID
 
-	sessions, err := StartFlow(ctx, db, rp, org, flow, batch.ContactIDs(), options)
+	sessions, err := StartFlow(ctx, db, rp, oa, flow, batch.ContactIDs(), options)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error starting flow batch")
 	}
@@ -224,7 +238,7 @@ func StartFlowBatch(
 func FireCampaignEvents(
 	ctx context.Context, db *sqlx.DB, rp *redis.Pool,
 	orgID models.OrgID, fires []*models.EventFire, flowUUID assets.FlowUUID,
-	event *triggers.CampaignEvent) ([]models.ContactID, error) {
+	campaign *triggers.CampaignReference, eventUUID triggers.CampaignEventUUID) ([]models.ContactID, error) {
 
 	if len(fires) == 0 {
 		return nil, nil
@@ -242,13 +256,13 @@ func FireCampaignEvents(
 	}
 
 	// create our org assets
-	org, err := models.GetOrgAssets(ctx, db, orgID)
+	oa, err := models.GetOrgAssets(ctx, db, orgID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error creating assets for org: %d", orgID)
 	}
 
 	// find our actual event
-	dbEvent := org.CampaignEventByID(fires[0].EventID)
+	dbEvent := oa.CampaignEventByID(fires[0].EventID)
 
 	// no longer active? delete these event fires and return
 	if dbEvent == nil {
@@ -260,7 +274,7 @@ func FireCampaignEvents(
 	}
 
 	// try to load our flow
-	flow, err := org.Flow(flowUUID)
+	flow, err := oa.Flow(flowUUID)
 	if err == models.ErrNotFound {
 		err := models.DeleteEventFires(ctx, db, fires)
 		if err != nil {
@@ -295,7 +309,7 @@ func FireCampaignEvents(
 	// if this is an ivr flow, we need to create a task to perform the start there
 	if dbFlow.FlowType() == models.IVRFlow {
 		// Trigger our IVR flow start
-		err := TriggerIVRFlow(ctx, db, rp, org.OrgID(), dbFlow.ID(), contactIDs, func(ctx context.Context, tx *sqlx.Tx) error {
+		err := TriggerIVRFlow(ctx, db, rp, oa.OrgID(), dbFlow.ID(), contactIDs, func(ctx context.Context, tx *sqlx.Tx) error {
 			return models.MarkEventsFired(ctx, tx, fires, time.Now(), models.FireResultFired)
 		})
 		if err != nil {
@@ -306,15 +320,15 @@ func FireCampaignEvents(
 
 	// our builder for the triggers that will be created for contacts
 	flowRef := assets.NewFlowReference(flow.UUID(), flow.Name())
-	options.TriggerBuilder = func(contact *flows.Contact) (flows.Trigger, error) {
+	options.TriggerBuilder = func(contact *flows.Contact) flows.Trigger {
 		delete(skippedContacts, models.ContactID(contact.ID()))
-		return triggers.NewCampaign(org.Env(), flowRef, contact, event), nil
+		return triggers.NewBuilder(oa.Env(), flowRef, contact).Campaign(campaign, eventUUID).Build()
 	}
 
 	// this is our pre commit callback for our sessions, we'll mark the event fires associated
 	// with the passed in sessions as complete in the same transaction
 	fired := time.Now()
-	options.CommitHook = func(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, org *models.OrgAssets, sessions []*models.Session) error {
+	options.CommitHook = func(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, oa *models.OrgAssets, sessions []*models.Session) error {
 		// build up our list of event fire ids based on the session contact ids
 		fires := make([]*models.EventFire, 0, len(sessions))
 		for _, s := range sessions {
@@ -348,9 +362,9 @@ func FireCampaignEvents(
 		return nil
 	}
 
-	sessions, err := StartFlow(ctx, db, rp, org, dbFlow, contactIDs, options)
+	sessions, err := StartFlow(ctx, db, rp, oa, dbFlow, contactIDs, options)
 	if err != nil {
-		logrus.WithField("contact_ids", contactIDs).WithError(err).Errorf("error starting flow for campaign event: %v", event)
+		logrus.WithField("contact_ids", contactIDs).WithError(err).Errorf("error starting flow for campaign event: %s", eventUUID)
 	} else {
 		// make sure any skipped contacts are marked as fired this can occur if all fires were skipped
 		fires := make([]*models.EventFire, 0, len(sessions))
@@ -359,7 +373,7 @@ func FireCampaignEvents(
 		}
 		err = models.MarkEventsFired(ctx, db, fires, fired, models.FireResultSkipped)
 		if err != nil {
-			logrus.WithField("fire_ids", fires).WithError(err).Errorf("error marking events as skipped: %v", event)
+			logrus.WithField("fire_ids", fires).WithError(err).Errorf("error marking events as skipped: %s", eventUUID)
 		}
 	}
 
@@ -377,7 +391,7 @@ func FireCampaignEvents(
 
 // StartFlow runs the passed in flow for the passed in contact
 func StartFlow(
-	ctx context.Context, db *sqlx.DB, rp *redis.Pool, org *models.OrgAssets,
+	ctx context.Context, db *sqlx.DB, rp *redis.Pool, oa *models.OrgAssets,
 	flow *models.Flow, contactIDs []models.ContactID, options *StartOptions) ([]*models.Session, error) {
 
 	if len(contactIDs) == 0 {
@@ -441,7 +455,7 @@ func StartFlow(
 
 		// try up to a second to get a lock for a contact
 		for _, contactID := range remaining {
-			lockID := models.ContactLock(org.OrgID(), contactID)
+			lockID := models.ContactLock(oa.OrgID(), contactID)
 			lock, err := locker.GrabLock(rp, lockID, time.Minute*5, time.Second)
 			if err != nil {
 				return nil, errors.Wrapf(err, "error attempting to grab lock")
@@ -462,7 +476,7 @@ func StartFlow(
 		}
 
 		// load our locked contacts
-		contacts, err := models.LoadContacts(ctx, db, org, locked)
+		contacts, err := models.LoadContacts(ctx, db, oa, locked)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error loading contacts to start")
 		}
@@ -470,18 +484,15 @@ func StartFlow(
 		// ok, we've filtered our contacts, build our triggers
 		triggers := make([]flows.Trigger, 0, len(locked))
 		for _, c := range contacts {
-			contact, err := c.FlowContact(org)
+			contact, err := c.FlowContact(oa)
 			if err != nil {
 				return nil, errors.Wrapf(err, "error creating flow contact")
 			}
-			trigger, err := options.TriggerBuilder(contact)
-			if err != nil {
-				return nil, err
-			}
+			trigger := options.TriggerBuilder(contact)
 			triggers = append(triggers, trigger)
 		}
 
-		ss, err := StartFlowForContacts(ctx, db, rp, org, flow, triggers, options.CommitHook, options.Interrupt)
+		ss, err := StartFlowForContacts(ctx, db, rp, oa, flow, triggers, options.CommitHook, options.Interrupt)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error starting flow for contacts")
 		}
@@ -493,7 +504,7 @@ func StartFlow(
 
 		// release all our locks
 		for i := range locked {
-			lockID := models.ContactLock(org.OrgID(), locked[i])
+			lockID := models.ContactLock(oa.OrgID(), locked[i])
 			locker.ReleaseLock(rp, lockID, locks[i])
 			released[lockID] = true
 		}
@@ -507,9 +518,9 @@ func StartFlow(
 
 // StartFlowForContacts runs the passed in flow for the passed in contact
 func StartFlowForContacts(
-	ctx context.Context, db *sqlx.DB, rp *redis.Pool, org *models.OrgAssets,
+	ctx context.Context, db *sqlx.DB, rp *redis.Pool, oa *models.OrgAssets,
 	flow *models.Flow, triggers []flows.Trigger, hook models.SessionCommitHook, interrupt bool) ([]*models.Session, error) {
-	assets := org.SessionAssets()
+	sa := oa.SessionAssets()
 
 	// no triggers? nothing to do
 	if len(triggers) == 0 {
@@ -528,7 +539,7 @@ func StartFlowForContacts(
 		log := log.WithField("contact_uuid", trigger.Contact().UUID())
 		start := time.Now()
 
-		session, sprint, err := goflow.Engine().NewSession(assets, trigger)
+		session, sprint, err := goflow.Engine().NewSession(sa, trigger)
 		if err != nil {
 			log.WithError(err).Errorf("error starting flow")
 			continue
@@ -569,7 +580,7 @@ func StartFlowForContacts(
 	}
 
 	// write our session to the db
-	dbSessions, err := models.WriteSessions(txCTX, tx, rp, org, sessions, sprints, hook)
+	dbSessions, err := models.WriteSessions(txCTX, tx, rp, oa, sessions, sprints, hook)
 	if err == nil {
 		// commit it at once
 		commitStart := time.Now()
@@ -609,7 +620,7 @@ func StartFlowForContacts(
 				}
 			}
 
-			dbSession, err := models.WriteSessions(txCTX, tx, rp, org, []flows.Session{session}, []flows.Sprint{sprint}, hook)
+			dbSession, err := models.WriteSessions(txCTX, tx, rp, oa, []flows.Session{session}, []flows.Sprint{sprint}, hook)
 			if err != nil {
 				tx.Rollback()
 				log.WithField("contact_uuid", session.Contact().UUID()).WithError(err).Errorf("error writing session to db")
@@ -641,7 +652,7 @@ func StartFlowForContacts(
 		scenes = append(scenes, s.Scene())
 	}
 
-	err = models.ApplyEventPostCommitHooks(txCTX, tx, rp, org, scenes)
+	err = models.ApplyEventPostCommitHooks(txCTX, tx, rp, oa, scenes)
 	if err == nil {
 		err = tx.Commit()
 	}
@@ -663,7 +674,7 @@ func StartFlowForContacts(
 				continue
 			}
 
-			err = models.ApplyEventPostCommitHooks(ctx, tx, rp, org, []*models.Scene{session.Scene()})
+			err = models.ApplyEventPostCommitHooks(ctx, tx, rp, oa, []*models.Scene{session.Scene()})
 			if err != nil {
 				tx.Rollback()
 				log.WithError(err).Errorf("error applying post commit hook")
@@ -693,7 +704,7 @@ func TriggerIVRFlow(ctx context.Context, db *sqlx.DB, rp *redis.Pool, orgID mode
 	tx, _ := db.BeginTxx(ctx, nil)
 
 	// create our start
-	start := models.NewFlowStart(orgID, models.IVRFlow, flowID, models.DoRestartParticipants, models.DoIncludeActive).
+	start := models.NewFlowStart(orgID, models.StartTypeTrigger, models.IVRFlow, flowID, models.DoRestartParticipants, models.DoIncludeActive).
 		WithContactIDs(contactIDs)
 
 	// insert it
@@ -720,8 +731,7 @@ func TriggerIVRFlow(ctx context.Context, db *sqlx.DB, rp *redis.Pool, orgID mode
 	}
 
 	// create our batch of all our contacts
-	task := start.CreateBatch(contactIDs)
-	task.SetIsLast(true)
+	task := start.CreateBatch(contactIDs, true, len(contactIDs))
 
 	// queue this to our ivr starter, it will take care of creating the connections then calling back in
 	rc := rp.Get()

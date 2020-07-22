@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"database/sql/driver"
-	"net/http"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -12,25 +11,27 @@ import (
 	"github.com/nyaruka/goflow/services/classification/bothub"
 	"github.com/nyaruka/goflow/services/classification/luis"
 	"github.com/nyaruka/goflow/services/classification/wit"
-	"github.com/nyaruka/goflow/utils/httpx"
 	"github.com/nyaruka/mailroom/goflow"
 	"github.com/nyaruka/null"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
-// ClassifierID is our type for classifier ids
+// ClassifierID is our type for classifier IDs
 type ClassifierID null.Int
 
-const (
-	// NilClassifierID is our const for a nil classifier ID
-	NilClassifierID = ClassifierID(0)
+// NilClassifierID is nil value for classifier IDs
+const NilClassifierID = ClassifierID(0)
 
-	// Our classifier types
+// classifier type constants
+const (
 	ClassifierTypeWit    = "wit"
 	ClassifierTypeLuis   = "luis"
 	ClassifierTypeBothub = "bothub"
+)
 
+// classifier config key constants
+const (
 	// Wit.ai config options
 	WitConfigAccessToken = "access_token"
 
@@ -46,17 +47,14 @@ const (
 
 // Register a classification service factory with the engine
 func init() {
-	httpClient := &http.Client{Timeout: time.Duration(15 * time.Second)}
-	httpRetries := httpx.NewFixedRetries(3, 10)
-
 	goflow.RegisterClassificationServiceFactory(
 		func(session flows.Session, classifier *flows.Classifier) (flows.ClassificationService, error) {
-			return classifier.Asset().(*Classifier).AsService(httpClient, httpRetries, classifier)
+			return classifier.Asset().(*Classifier).AsService(classifier)
 		},
 	)
 }
 
-// Classifier is our type for a Classifier
+// Classifier is our type for a classifier
 type Classifier struct {
 	c struct {
 		ID      ClassifierID          `json:"id"`
@@ -89,8 +87,8 @@ func (c *Classifier) Intents() []string { return c.c.intentNames }
 func (c *Classifier) Type() string { return c.c.Type }
 
 // AsService builds the corresponding ClassificationService for the passed in Classifier
-func (c *Classifier) AsService(httpClient *http.Client, httpRetries *httpx.RetryConfig, classifier *flows.Classifier) (flows.ClassificationService, error) {
-	_, _, httpAccess := goflow.WebhooksHTTP()
+func (c *Classifier) AsService(classifier *flows.Classifier) (flows.ClassificationService, error) {
+	httpClient, httpRetries, httpAccess := goflow.HTTP()
 
 	switch c.Type() {
 	case ClassifierTypeWit:

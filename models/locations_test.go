@@ -3,8 +3,9 @@ package models
 import (
 	"testing"
 
-	"github.com/nyaruka/goflow/utils"
+	"github.com/nyaruka/goflow/envs"
 	"github.com/nyaruka/mailroom/testsuite"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,9 +14,9 @@ func TestLocations(t *testing.T) {
 	db := testsuite.DB()
 
 	db.MustExec(`INSERT INTO locations_boundaryalias(is_active, created_on, modified_on, name, boundary_id, created_by_id, modified_by_id, org_id)
-											  VALUES(TRUE, NOW(), NOW(), 'Soko', 2, 1, 1, 1);`)
+											  VALUES(TRUE, NOW(), NOW(), 'Soko', 8148, 1, 1, 1);`)
 	db.MustExec(`INSERT INTO locations_boundaryalias(is_active, created_on, modified_on, name, boundary_id, created_by_id, modified_by_id, org_id)
-	                                          VALUES(TRUE, NOW(), NOW(), 'Sokoz', 2, 1, 1, 2);`)
+	                                          VALUES(TRUE, NOW(), NOW(), 'Sokoz', 8148, 1, 1, 2);`)
 
 	root, err := loadLocations(ctx, db, 1)
 	assert.NoError(t, err)
@@ -30,7 +31,7 @@ func TestLocations(t *testing.T) {
 
 	tcs := []struct {
 		Name        string
-		Level       utils.LocationLevel
+		Level       envs.LocationLevel
 		Aliases     []string
 		NumChildren int
 	}{

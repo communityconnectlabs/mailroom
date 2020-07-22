@@ -23,22 +23,16 @@ type StartBroadcastsHook struct{}
 var startBroadcastsHook = &StartBroadcastsHook{}
 
 // Apply queues up our broadcasts for sending
-func (h *StartBroadcastsHook) Apply(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, org *models.OrgAssets, scenes map[*models.Scene][]interface{}) error {
+func (h *StartBroadcastsHook) Apply(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, oa *models.OrgAssets, scenes map[*models.Scene][]interface{}) error {
 	rc := rp.Get()
 	defer rc.Close()
 
 	// for each of our scene
-	for s, es := range scenes {
+	for _, es := range scenes {
 		for _, e := range es {
 			event := e.(*events.BroadcastCreatedEvent)
 
-			// we skip over any scene starts that involve groups if we are in a batch start
-			if len(scenes) > 1 && len(event.Groups) > 0 {
-				logrus.WithField("session_id", s.SessionID).Error("ignoring broadcast on group in batch")
-				continue
-			}
-
-			bcast, err := models.NewBroadcastFromEvent(ctx, tx, org, event)
+			bcast, err := models.NewBroadcastFromEvent(ctx, tx, oa, event)
 			if err != nil {
 				return errors.Wrapf(err, "error creating broadcast")
 			}
@@ -52,7 +46,7 @@ func (h *StartBroadcastsHook) Apply(ctx context.Context, tx *sqlx.Tx, rp *redis.
 				priority = queue.HighPriority
 			}
 
-			err = queue.AddTask(rc, taskQ, queue.SendBroadcast, int(org.OrgID()), bcast, priority)
+			err = queue.AddTask(rc, taskQ, queue.SendBroadcast, int(oa.OrgID()), bcast, priority)
 			if err != nil {
 				return errors.Wrapf(err, "error queuing broadcast")
 			}
@@ -63,7 +57,7 @@ func (h *StartBroadcastsHook) Apply(ctx context.Context, tx *sqlx.Tx, rp *redis.
 }
 
 // handleBroadcastCreated is called for each broadcast created event across our scene
-func handleBroadcastCreated(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, org *models.OrgAssets, scene *models.Scene, e flows.Event) error {
+func handleBroadcastCreated(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, oa *models.OrgAssets, scene *models.Scene, e flows.Event) error {
 	event := e.(*events.BroadcastCreatedEvent)
 	logrus.WithFields(logrus.Fields{
 		"contact_uuid": scene.ContactUUID(),

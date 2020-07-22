@@ -1,3 +1,170 @@
+v5.7.0
+----------
+ * Set user and origin on manual triggers
+ * Switch to trigger builders
+
+v5.6.1
+----------
+ * expire runs that have no session, just warn while doing so
+
+v5.6.0
+----------
+ * 5.6.0 Release Candidate
+
+v5.5.38 
+----------
+ * Varible naming consistency
+
+v5.5.37
+----------
+ * Fix reading of modifiers so always ignore modifier that becomes noop
+
+v5.5.36
+----------
+ * Sead country from templates
+ * Ignore missing assets when reading modifiers
+ * Fail flow starts which can't be started
+
+v5.5.35
+----------
+ * Update to latest goflow and add tests for field modifiers
+
+v5.5.34
+----------
+ * Fix detaching URNs
+
+v5.5.33
+----------
+ * Update to latest goflow v0.93.0
+
+v5.5.32
+----------
+ * When blocking contacts archive any triggers which only apply to them
+
+v5.5.31
+----------
+ * Messages without topups should be queued
+ * Continue handling as normal for suspended orgs
+
+v5.5.30
+----------
+ * Org being suspended should stop message handling
+ * Make decrementing org credit optional
+
+v5.5.29
+----------
+ * Return query inspection results as new metadata field in responses
+ * Update to latest goflow v0.92.0
+
+v5.5.28
+----------
+ * Don't do any decoration of email ticket subjects
+
+v5.5.27
+----------
+ * Allow searching by UUID, as well != matches on ID and UUID
+ * Update to latest goflow v0.91.1 to fix clearing fields
+ * Maybe fix intermittently failing test
+
+v5.5.26
+----------
+ * Update to goflow v0.89.0
+
+v5.5.25
+----------
+ * Add endpoint to change a flow language
+
+v5.5.24
+----------
+ * Tickets fixes and improvements
+ * Update to goflow v0.87.0
+
+v5.5.17
+----------
+ * Send email when reopening mailgun ticket
+
+v5.5.16
+----------
+ * Implement closing of tickets in zendesk from mailroom
+
+v5.5.15
+----------
+ * Send close notification emails in mailgun tickets
+ * Reply back to users who replies aren't permitted to go to the ticket
+ * Simplify sharing of HTTP configuration between services
+ * Add simulator ticket service to fake creating tickets
+ * Fix verifying sender when receiving mailgun reply
+
+v5.5.14
+----------
+ * Basic handling of tickets (mailgun and zendesk ticketer types)
+
+v5.5.13
+----------
+ * Update to goflow v0.85.0
+ * Use go 1.14 and do some minor dep updatse
+ * Bump max request bytes to 32MB for web server
+ * Implement hooks for status modifier events
+
+v5.5.12
+----------
+ * Update to goflow v0.83.1
+
+v5.5.11
+----------
+ * Update to goflow v0.83.0
+ * Don't blow up if flow is deleted during simulation
+
+v5.5.10
+----------
+ * Update to goflow v0.82.0
+ * Populate flows_flowstart.start_type
+
+v5.5.9
+----------
+ * Set org on new flow starts
+ * Allow for seeded UUID generation in testing environments with -uuid-seed switch
+ * Set language attribute from ivr_created_event on TwiML say action
+
+v5.5.8
+----------
+ * Update flow start modified_on when making changes
+ * Add method to set modified_by on contacts
+
+v5.5.7
+----------
+ * Update to latest goflow v0.81.0
+
+v5.5.6
+----------
+ * Update to latest goflow v0.79.1
+
+v5.5.5
+----------
+ * Update mailroom test db
+ * Only Prometheus group can access metrics
+
+v5.5.4
+----------
+ * Drop no longer used validate_with_org_id param on inspect endpoint
+ * Add endpoints to export and import PO files from flows
+
+v5.5.3
+----------
+ * Add decode_html Excellent function
+
+v5.5.2
+----------
+ * Change to using basic auth for org specific prom metrics endpoint
+
+v5.5.1
+----------
+ * Update to latest goflow v0.78.0
+
+v5.5.0
+----------
+ * Add prometheus endpoint for org level metrics
+
 v5.4.4
 ----------
  * Update to latest goflow v0.77.4

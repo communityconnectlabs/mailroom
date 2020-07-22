@@ -6,31 +6,36 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/null"
+
+	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
+// FlowID is the type for flow IDs
 type FlowID null.Int
 
+// NilFlowID is nil value for flow IDs
+const NilFlowID = FlowID(0)
+
+// FlowType is the type for the type of a flow
 type FlowType string
 
+// flow type constants
 const (
-	GoFlowMajorVersion = 12
-
 	IVRFlow       = FlowType("V")
 	MessagingFlow = FlowType("M")
 	SurveyorFlow  = FlowType("S")
-
-	FlowConfigIVRRetryMinutes = "ivr_retry"
-
-	NilFlowID = FlowID(0)
 )
 
-var FlowTypeMapping = map[flows.FlowType]FlowType{
+const (
+	flowConfigIVRRetryMinutes = "ivr_retry"
+)
+
+var flowTypeMapping = map[flows.FlowType]FlowType{
 	flows.FlowTypeMessaging:        MessagingFlow,
 	flows.FlowTypeVoice:            IVRFlow,
 	flows.FlowTypeMessagingOffline: SurveyorFlow,
@@ -68,21 +73,14 @@ func (f *Flow) FlowType() FlowType { return f.f.FlowType }
 // Version returns the version this flow was authored in
 func (f *Flow) Version() string { return f.f.Version }
 
-// IntConfigValue returns the value for the key passed in as an int. If the value
-// is not an integer or is not present then the defaultValue is returned
-func (f *Flow) IntConfigValue(key string, defaultValue int64) int64 {
-	value := f.f.Config.Get(key, defaultValue)
+// IVRRetryWait returns the wait before retrying a failed IVR call
+func (f *Flow) IVRRetryWait() time.Duration {
+	value := f.f.Config.Get(flowConfigIVRRetryMinutes, nil)
 	fv, isFloat := value.(float64)
 	if isFloat {
-		return int64(fv)
+		return time.Minute * time.Duration(int(fv))
 	}
-	return defaultValue
-}
-
-// StringConfigValue returns the value for the key passed in as a string. If the value
-// is not a string or is not present then the defaultValue is returned
-func (f *Flow) StringConfigValue(key string, defaultValue string) string {
-	return f.f.Config.GetString(key, defaultValue)
+	return ConnectionRetryWait
 }
 
 // IgnoreTriggers returns whether this flow ignores triggers
@@ -93,16 +91,16 @@ func (f *Flow) FlowReference() *assets.FlowReference {
 	return assets.NewFlowReference(f.UUID(), f.Name())
 }
 
-func flowIDForUUID(ctx context.Context, tx *sqlx.Tx, org *OrgAssets, flowUUID assets.FlowUUID) (FlowID, error) {
+func flowIDForUUID(ctx context.Context, tx *sqlx.Tx, oa *OrgAssets, flowUUID assets.FlowUUID) (FlowID, error) {
 	// first try to look up in our assets
-	flow, _ := org.Flow(flowUUID)
+	flow, _ := oa.Flow(flowUUID)
 	if flow != nil {
 		return flow.(*Flow).ID(), nil
 	}
 
 	// flow may be inactive, try to look up the ID only
 	var flowID FlowID
-	err := tx.GetContext(ctx, &flowID, `SELECT id FROM flows_flow WHERE org_id = $1 AND uuid = $2;`, org.OrgID(), flowUUID)
+	err := tx.GetContext(ctx, &flowID, `SELECT id FROM flows_flow WHERE org_id = $1 AND uuid = $2;`, oa.OrgID(), flowUUID)
 	return flowID, err
 }
 

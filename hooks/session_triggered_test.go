@@ -22,10 +22,10 @@ func TestSessionTriggered(t *testing.T) {
 	db := testsuite.DB()
 	ctx := testsuite.CTX()
 
-	org, err := models.GetOrgAssets(ctx, db, models.Org1)
+	oa, err := models.GetOrgAssets(ctx, db, models.Org1)
 	assert.NoError(t, err)
 
-	simpleFlow, err := org.FlowByID(models.SingleMessageFlowID)
+	simpleFlow, err := oa.FlowByID(models.SingleMessageFlowID)
 	assert.NoError(t, err)
 
 	contactRef := &flows.ContactReference{
@@ -37,29 +37,29 @@ func TestSessionTriggered(t *testing.T) {
 	}
 
 	tcs := []HookTestCase{
-		HookTestCase{
+		{
 			Actions: ContactActionMap{
 				models.CathyID: []flows.Action{
 					actions.NewStartSession(newActionUUID(), simpleFlow.FlowReference(), nil, []*flows.ContactReference{contactRef}, []*assets.GroupReference{groupRef}, nil, true),
 				},
 			},
 			SQLAssertions: []SQLAssertion{
-				SQLAssertion{
+				{
 					SQL:   "select count(*) from flows_flowrun where contact_id = $1 AND is_active = FALSE",
 					Args:  []interface{}{models.CathyID},
 					Count: 1,
 				},
-				SQLAssertion{
-					SQL:   "select count(*) from flows_flowstart where flow_id = $1 AND status = 'P' AND parent_summary IS NOT NULL;",
+				{
+					SQL:   "select count(*) from flows_flowstart where org_id = 1 AND start_type = 'F' AND flow_id = $1 AND status = 'P' AND parent_summary IS NOT NULL;",
 					Args:  []interface{}{models.SingleMessageFlowID},
 					Count: 1,
 				},
-				SQLAssertion{
+				{
 					SQL:   "select count(*) from flows_flowstart_contacts where id = 1 AND contact_id = $1",
 					Args:  []interface{}{models.GeorgeID},
 					Count: 1,
 				},
-				SQLAssertion{
+				{
 					SQL:   "select count(*) from flows_flowstart_groups where id = 1 AND contactgroup_id = $1",
 					Args:  []interface{}{models.TestersGroupID},
 					Count: 1,
@@ -83,7 +83,7 @@ func TestSessionTriggered(t *testing.T) {
 		},
 	}
 
-	RunActionTestCases(t, tcs)
+	RunHookTestCases(t, tcs)
 }
 
 func TestQuerySessionTriggered(t *testing.T) {
@@ -93,23 +93,23 @@ func TestQuerySessionTriggered(t *testing.T) {
 	db := testsuite.DB()
 	ctx := testsuite.CTX()
 
-	org, err := models.GetOrgAssets(ctx, db, models.Org1)
+	oa, err := models.GetOrgAssets(ctx, db, models.Org1)
 	assert.NoError(t, err)
 
-	favoriteFlow, err := org.FlowByID(models.FavoritesFlowID)
+	favoriteFlow, err := oa.FlowByID(models.FavoritesFlowID)
 	assert.NoError(t, err)
 
 	sessionAction := actions.NewStartSession(newActionUUID(), favoriteFlow.FlowReference(), nil, nil, nil, nil, true)
 	sessionAction.ContactQuery = "name ~ @contact.name"
 
 	tcs := []HookTestCase{
-		HookTestCase{
+		{
 			Actions: ContactActionMap{
 				models.CathyID: []flows.Action{sessionAction},
 			},
 			SQLAssertions: []SQLAssertion{
-				SQLAssertion{
-					SQL:   `select count(*) from flows_flowstart where flow_id = $1 AND status = 'P' AND query = 'name ~ "Cathy"' AND parent_summary IS NOT NULL;`,
+				{
+					SQL:   `select count(*) from flows_flowstart where flow_id = $1 AND start_type = 'F' AND status = 'P' AND query = 'name ~ "Cathy"' AND parent_summary IS NOT NULL;`,
 					Args:  []interface{}{models.FavoritesFlowID},
 					Count: 1,
 				},
@@ -133,5 +133,5 @@ func TestQuerySessionTriggered(t *testing.T) {
 		},
 	}
 
-	RunActionTestCases(t, tcs)
+	RunHookTestCases(t, tcs)
 }

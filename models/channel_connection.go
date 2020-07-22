@@ -5,28 +5,41 @@ import (
 	"database/sql/driver"
 	"time"
 
+	"github.com/nyaruka/null"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
-	"github.com/nyaruka/null"
 	"github.com/pkg/errors"
 )
 
+// ConnectionID is the type for connection IDs
 type ConnectionID null.Int
 
+// NilConnectionID is the nil value for connection IDs
 const NilConnectionID = ConnectionID(0)
 
+// ConnectionStatus is the type for the status of a connection
 type ConnectionStatus string
 
+// ConnectionDirection is the type for the direction of a connection
 type ConnectionDirection string
 
+// ConnectionType is the type for the type of a connection
 type ConnectionType string
 
+// connection direction constants
 const (
 	ConnectionDirectionIn  = ConnectionDirection("I")
 	ConnectionDirectionOut = ConnectionDirection("O")
+)
 
+// connection type constants
+const (
 	ConnectionTypeIVR = ConnectionType("V")
+)
 
+// connection status constants
+const (
 	ConnectionStatusPending    = ConnectionStatus("P")
 	ConnectionStatusQueued     = ConnectionStatus("Q")
 	ConnectionStatusWired      = ConnectionStatus("W")
@@ -41,13 +54,14 @@ const (
 
 	ConnectionMaxRetries = 3
 
-	// ConnectionRetryWait is our default wait to retry connections in minutes
-	ConnectionRetryWait = 60
+	// ConnectionRetryWait is our default wait to retry connections
+	ConnectionRetryWait = time.Minute * 60
 
 	// ConnectionThrottleWait is our wait between throttle retries
 	ConnectionThrottleWait = time.Minute * 2
 )
 
+// ChannelConnection models a session or connection with a particular channel
 type ChannelConnection struct {
 	c struct {
 		ID             ConnectionID        `json:"id"              db:"id"`
@@ -71,15 +85,19 @@ type ChannelConnection struct {
 	}
 }
 
-func (c *ChannelConnection) ID() ConnectionID         { return c.c.ID }
+// ID returns the id of this connection
+func (c *ChannelConnection) ID() ConnectionID { return c.c.ID }
+
+// Status returns the status of this connection
 func (c *ChannelConnection) Status() ConnectionStatus { return c.c.Status }
-func (c *ChannelConnection) NextAttempt() *time.Time  { return c.c.NextAttempt }
-func (c *ChannelConnection) ExternalID() string       { return c.c.ExternalID }
-func (c *ChannelConnection) OrgID() OrgID             { return c.c.OrgID }
-func (c *ChannelConnection) ContactID() ContactID     { return c.c.ContactID }
-func (c *ChannelConnection) ContactURNID() URNID      { return c.c.ContactURNID }
-func (c *ChannelConnection) ChannelID() ChannelID     { return c.c.ChannelID }
-func (c *ChannelConnection) StartID() StartID         { return c.c.StartID }
+
+func (c *ChannelConnection) NextAttempt() *time.Time { return c.c.NextAttempt }
+func (c *ChannelConnection) ExternalID() string      { return c.c.ExternalID }
+func (c *ChannelConnection) OrgID() OrgID            { return c.c.OrgID }
+func (c *ChannelConnection) ContactID() ContactID    { return c.c.ContactID }
+func (c *ChannelConnection) ContactURNID() URNID     { return c.c.ContactURNID }
+func (c *ChannelConnection) ChannelID() ChannelID    { return c.c.ChannelID }
+func (c *ChannelConnection) StartID() StartID        { return c.c.StartID }
 
 const insertConnectionSQL = `
 INSERT INTO
