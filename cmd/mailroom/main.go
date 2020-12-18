@@ -6,26 +6,30 @@ import (
 	"runtime"
 	"syscall"
 
-	_ "github.com/lib/pq"
 	"github.com/nyaruka/ezconf"
-	"github.com/nyaruka/goflow/utils/uuids"
+	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/logrus_sentry"
 	"github.com/nyaruka/mailroom"
 	"github.com/nyaruka/mailroom/config"
-	"github.com/sirupsen/logrus"
 
-	_ "github.com/nyaruka/mailroom/hooks"
-	_ "github.com/nyaruka/mailroom/tasks/broadcasts"
-	_ "github.com/nyaruka/mailroom/tasks/campaigns"
-	_ "github.com/nyaruka/mailroom/tasks/expirations"
-	_ "github.com/nyaruka/mailroom/tasks/groups"
-	_ "github.com/nyaruka/mailroom/tasks/interrupts"
-	_ "github.com/nyaruka/mailroom/tasks/ivr"
-	_ "github.com/nyaruka/mailroom/tasks/schedules"
-	_ "github.com/nyaruka/mailroom/tasks/starts"
-	_ "github.com/nyaruka/mailroom/tasks/stats"
-	_ "github.com/nyaruka/mailroom/tasks/timeouts"
-
+	_ "github.com/nyaruka/mailroom/core/handlers"
+	_ "github.com/nyaruka/mailroom/core/hooks"
+	_ "github.com/nyaruka/mailroom/core/ivr/nexmo"
+	_ "github.com/nyaruka/mailroom/core/ivr/twiml"
+	_ "github.com/nyaruka/mailroom/core/tasks/broadcasts"
+	_ "github.com/nyaruka/mailroom/core/tasks/campaigns"
+	_ "github.com/nyaruka/mailroom/core/tasks/contacts"
+	_ "github.com/nyaruka/mailroom/core/tasks/expirations"
+	_ "github.com/nyaruka/mailroom/core/tasks/groups"
+	_ "github.com/nyaruka/mailroom/core/tasks/interrupts"
+	_ "github.com/nyaruka/mailroom/core/tasks/ivr"
+	_ "github.com/nyaruka/mailroom/core/tasks/schedules"
+	_ "github.com/nyaruka/mailroom/core/tasks/starts"
+	_ "github.com/nyaruka/mailroom/core/tasks/stats"
+	_ "github.com/nyaruka/mailroom/core/tasks/timeouts"
+	_ "github.com/nyaruka/mailroom/services/tickets/mailgun"
+	_ "github.com/nyaruka/mailroom/services/tickets/rocketchat"
+	_ "github.com/nyaruka/mailroom/services/tickets/zendesk"
 	_ "github.com/nyaruka/mailroom/web/contact"
 	_ "github.com/nyaruka/mailroom/web/docs"
 	_ "github.com/nyaruka/mailroom/web/expression"
@@ -37,11 +41,8 @@ import (
 	_ "github.com/nyaruka/mailroom/web/surveyor"
 	_ "github.com/nyaruka/mailroom/web/ticket"
 
-	_ "github.com/nyaruka/mailroom/services/tickets/mailgun"
-	_ "github.com/nyaruka/mailroom/services/tickets/zendesk"
-
-	_ "github.com/nyaruka/mailroom/ivr/nexmo"
-	_ "github.com/nyaruka/mailroom/ivr/twiml"
+	_ "github.com/lib/pq"
+	"github.com/sirupsen/logrus"
 )
 
 var version = "Dev"
@@ -54,6 +55,11 @@ func main() {
 		[]string{"mailroom.toml"},
 	)
 	loader.MustLoad()
+
+	// ensure config is valid
+	if err := config.Validate(); err != nil {
+		logrus.Fatalf("invalid config: %s", err)
+	}
 
 	// if we have a custom version, use it
 	if version != "Dev" {
