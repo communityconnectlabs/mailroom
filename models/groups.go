@@ -126,6 +126,8 @@ IN (
 );
 `
 
+const cleanContactGroupRelationshipSQL = `DELETE FROM contacts_contactgroup_contacts WHERE contactgroup_id = $1;`
+
 // AddContactsToGroups fires a bulk SQL query to remove all the contacts in the passed in groups
 func AddContactsToGroups(ctx context.Context, tx Queryer, adds []*GroupAdd) error {
 	if len(adds) == 0 {
@@ -250,6 +252,16 @@ func RemoveContactsFromGroupAndCampaigns(ctx context.Context, db *sqlx.DB, org *
 	return nil
 }
 
+// RemoveRestOfTheContactsFromGroup removes the rest of the contacts from the passed in group, making sure that all
+// contacts were removed from this group
+func RemoveRestOfTheContactsFromGroup(ctx context.Context, db *sqlx.DB, groupID GroupID) error {
+	_, err := db.ExecContext(ctx, cleanContactGroupRelationshipSQL, groupID)
+	if err != nil {
+		return errors.Wrapf(err, "error cleaning contact group relationship: %d", groupID)
+	}
+	return nil
+}
+
 // AddContactsToGroupAndCampaigns takes care of adding the passed in contacts to the passed in group, updating any
 // associated campaigns as needed
 func AddContactsToGroupAndCampaigns(ctx context.Context, db *sqlx.DB, org *OrgAssets, groupID GroupID, contactIDs []ContactID) error {
@@ -369,14 +381,14 @@ func PopulateDynamicGroup(ctx context.Context, db *sqlx.DB, es *elastic.Client, 
 	}
 
 	// calculate new set of ids
-	new, err := ContactIDsForQuery(ctx, es, org, query)
+	newOnes, err := ContactIDsForQuery(ctx, es, org, query)
 	if err != nil {
 		return 0, errors.Wrapf(err, "error performing query: %s for group: %d", query, groupID)
 	}
 
 	// find which need to be added or removed
 	adds := make([]ContactID, 0, 100)
-	for _, id := range new {
+	for _, id := range newOnes {
 		if !present[id] {
 			adds = append(adds, id)
 		}
@@ -395,6 +407,14 @@ func PopulateDynamicGroup(ctx context.Context, db *sqlx.DB, es *elastic.Client, 
 		return 0, errors.Wrapf(err, "error removing contacts from group: %d", groupID)
 	}
 
+	restIds, err := ContactIDsForGroupIDs(ctx, db, []GroupID{groupID})
+	if len(restIds) > 0 {
+		err = RemoveRestOfTheContactsFromGroup(ctx, db, groupID)
+		if err != nil {
+			return 0, errors.Wrapf(err, "error cleaning the contacts group: %d", groupID)
+		}
+	}
+
 	// then add them all
 	err = AddContactsToGroupAndCampaigns(ctx, db, org, groupID, adds)
 	if err != nil {
@@ -407,5 +427,5 @@ func PopulateDynamicGroup(ctx context.Context, db *sqlx.DB, es *elastic.Client, 
 		return 0, errors.Wrapf(err, "error marking dynamic group as ready")
 	}
 
-	return len(new), nil
+	return len(newOnes), nil
 }
