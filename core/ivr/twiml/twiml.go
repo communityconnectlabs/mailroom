@@ -175,12 +175,16 @@ type CallResponse struct {
 }
 
 // RequestCall causes this client to request a new outgoing call for this provider
-func (c *client) RequestCall(number urns.URN, callbackURL string, statusURL string) (ivr.CallID, *httpx.Trace, error) {
+func (c *client) RequestCall(number urns.URN, callbackURL string, statusURL string, hasMachineDetection bool) (ivr.CallID, *httpx.Trace, error) {
 	form := url.Values{}
 	form.Set("To", number.Path())
 	form.Set("From", c.channel.Address())
 	form.Set("Url", callbackURL)
 	form.Set("StatusCallback", statusURL)
+
+	if hasMachineDetection {
+		form.Set("MachineDetection", "DetectMessageEnd")
+	}
 
 	sendURL := c.baseURL + strings.Replace(callPath, "{AccountSID}", c.accountSID, -1)
 
@@ -268,11 +272,14 @@ func (c *client) StatusForRequest(r *http.Request) (models.ConnectionStatus, int
 	case "in-progress", "initiated":
 		return models.ConnectionStatusInProgress, 0
 
+	case "busy", "no-answer":
+		return models.ConnectionStatusBusy, 0
+
 	case "completed":
 		duration, _ := strconv.Atoi(r.Form.Get("CallDuration"))
 		return models.ConnectionStatusCompleted, duration
 
-	case "busy", "no-answer", "canceled", "failed":
+	case "canceled", "failed":
 		return models.ConnectionStatusErrored, 0
 
 	default:

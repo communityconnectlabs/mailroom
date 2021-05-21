@@ -68,7 +68,7 @@ func GetClient(channel *models.Channel) (Client, error) {
 
 // Client defines the interface IVR clients must satisfy
 type Client interface {
-	RequestCall(number urns.URN, handleURL string, statusURL string) (CallID, *httpx.Trace, error)
+	RequestCall(number urns.URN, handleURL string, statusURL string, hasMachineDetection bool) (CallID, *httpx.Trace, error)
 
 	HangupCall(externalID string) (*httpx.Trace, error)
 
@@ -247,8 +247,14 @@ func RequestCallStartForConnection(ctx context.Context, config *config.Config, d
 		return errors.Wrapf(err, "unable to create ivr client")
 	}
 
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, conn.OrgID(), models.RefreshOrg)
+	hasMachineDetection := false
+	if err == nil && oa != nil {
+		hasMachineDetection = oa.Org().ConfigValue("IVR_MACHINE_DETECTION", "false") == "true"
+	}
+
 	// try to request our call start
-	callID, trace, err := c.RequestCall(telURN, resumeURL, statusURL)
+	callID, trace, err := c.RequestCall(telURN, resumeURL, statusURL, hasMachineDetection)
 
 	/// insert an channel log if we have an HTTP trace
 	if trace != nil {
@@ -341,16 +347,20 @@ func StartIVRFlow(
 	// our builder for the triggers that will be created for contacts
 	flowRef := assets.NewFlowReference(flow.UUID(), flow.Name())
 
+	// twilio credentials for checking voice call status
+	accountSID := channel.ConfigValue("account_sid", "")
+	authToken := channel.ConfigValue("auth_token", "")
+
 	var trigger flows.Trigger
 	if len(start.ParentSummary()) > 0 {
 		trigger = triggers.NewBuilder(oa.Env(), flowRef, contact).
 			FlowAction(history, start.ParentSummary()).
-			WithConnection(channel.ChannelReference(), urn).
+			WithConnection(channel.ChannelReference(), urn, conn.ExternalID(), fmt.Sprintf("%s:%s", accountSID, authToken)).
 			Build()
 	} else {
 		trigger = triggers.NewBuilder(oa.Env(), flowRef, contact).
 			Manual().
-			WithConnection(channel.ChannelReference(), urn).
+			WithConnection(channel.ChannelReference(), urn, conn.ExternalID(), fmt.Sprintf("%s:%s", accountSID, authToken)).
 			WithParams(params).
 			Build()
 	}
@@ -578,6 +588,26 @@ func HandleIVRStatus(ctx context.Context, db *sqlx.DB, rp *redis.Pool, oa *model
 		}
 	} else if status == models.ConnectionStatusFailed {
 		conn.MarkFailed(ctx, db, time.Now())
+	} else if status == models.ConnectionStatusBusy {
+		// on errors we need to look up the flow to know how long to wait before retrying
+		start, err := models.GetFlowStartAttributes(ctx, db, conn.StartID())
+		if err != nil {
+			return errors.Wrapf(err, "unable to load start: %d", conn.StartID())
+		}
+
+		flow, err := oa.FlowByID(start.FlowID())
+		if err != nil {
+			return errors.Wrapf(err, "unable to load flow: %d", start.FlowID())
+		}
+
+		// creating empty run even if the voice call was busy or no answer (it is getting billed on call's provider side)
+		contactID := flows.ContactID(conn.ContactID())
+		err = models.NewEmptyRun(ctx, db, contactID, flow.ID(), oa.OrgID())
+		if err != nil {
+			return errors.Wrapf(err, "error creating empty run")
+		}
+
+		conn.MarkBusy(ctx, db, time.Now())
 	} else {
 		if status != conn.Status() || duration > 0 {
 			err := conn.UpdateStatus(ctx, db, status, duration, time.Now())
