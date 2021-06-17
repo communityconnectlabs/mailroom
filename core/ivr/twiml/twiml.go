@@ -488,6 +488,7 @@ func responseForSprint(number urns.URN, resumeURL string, w flows.ActivatedWait,
 						languageCode = languageCode[:2]
 					}
 				}
+
 				commands = append(commands, Say{Text: event.Msg.Text(), Language: languageCode})
 			} else {
 				for _, a := range event.Msg.Attachments() {

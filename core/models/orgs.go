@@ -22,12 +22,12 @@ import (
 	"github.com/greatnonprofits-nfp/goflow/utils"
 	"github.com/nyaruka/mailroom/config"
 	"github.com/nyaruka/mailroom/core/goflow"
-	"github.com/nyaruka/mailroom/utils/dbutil"
 	"github.com/nyaruka/null"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/nyaruka/mailroom/utils/dbutil"
 )
 
 // Register a airtime service factory with the engine
