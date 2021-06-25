@@ -47,12 +47,18 @@ type Config struct {
 	Domain           string `help:"the domain that mailroom is listening on"`
 	AttachmentDomain string `help:"the domain that will be used for relative attachment"`
 
-	S3Endpoint         string `help:"the S3 endpoint we will write attachments to"`
-	S3Region           string `help:"the S3 region we will write attachments to"`
-	S3MediaBucket      string `help:"the S3 bucket we will write attachments to"`
-	S3MediaPrefix      string `help:"the prefix that will be added to attachment filenames"`
-	S3DisableSSL       bool   `help:"whether we disable SSL when accessing S3. Should always be set to False unless you're hosting an S3 compatible service within a secure internal network"`
-	S3ForcePathStyle   bool   `help:"whether we force S3 path style. Should generally need to default to False unless you're hosting an S3 compatible service"`
+	S3Endpoint string `help:"the S3 endpoint we will write attachments to"`
+	S3Region   string `help:"the S3 region we will write attachments to"`
+
+	S3MediaBucket string `help:"the S3 bucket we will write attachments to"`
+	S3MediaPrefix string `help:"the prefix that will be added to attachment filenames"`
+
+	S3SessionBucket string `help:"the S3 bucket we will write attachments to"`
+	S3SessionPrefix string `help:"the prefix that will be added to attachment filenames"`
+
+	S3DisableSSL     bool `help:"whether we disable SSL when accessing S3. Should always be set to False unless you're hosting an S3 compatible service within a secure internal network"`
+	S3ForcePathStyle bool `help:"whether we force S3 path style. Should generally need to default to False unless you're hosting an S3 compatible service"`
+
 	AWSAccessKeyID     string `help:"the access key id to use when authenticating S3"`
 	AWSSecretAccessKey string `help:"the secret access key id to use when authenticating S3"`
 
@@ -84,7 +90,7 @@ func NewMailroomConfig() *Config {
 		WebhooksInitialBackoff: 5000,
 		WebhooksBackoffJitter:  0.5,
 		SMTPServer:             "",
-		DisallowedNetworks:     `127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16`,
+		DisallowedNetworks:     `127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fe80::/10`,
 		MaxStepsPerSprint:      100,
 		MaxValueLength:         640,
 
@@ -92,6 +98,8 @@ func NewMailroomConfig() *Config {
 		S3Region:           "us-east-1",
 		S3MediaBucket:      "mailroom-media",
 		S3MediaPrefix:      "/media/",
+		S3SessionBucket:    "mailroom-sessions",
+		S3SessionPrefix:    "/",
 		S3DisableSSL:       false,
 		S3ForcePathStyle:   false,
 		AWSAccessKeyID:     "",

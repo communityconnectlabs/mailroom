@@ -1,3 +1,203 @@
+v6.3.24
+----------
+ * Update to latest goflow
+ * Load org users as assets and use for ticket assignees and manual trigger users
+ * Add ticket to broadcasts and update last_activity_on after creating messages for a broadcast with a ticket
+
+v6.3.23
+----------
+ * Add support for exclusion groups on scheduled triggers
+
+v6.3.22
+----------
+ * Update ticket last_activity_on when opening/closing and for incoming messages
+ * Set contact_id when creating new tickets events
+
+v6.3.21
+----------
+ * Update to latest goflow and which no longer takes default_language
+
+v6.3.20
+----------
+ * Have our session filename lead with timestamp so other objects can exist in contact dirs
+
+v6.3.19
+----------
+ * Parse URL to get path out for sessions
+
+v6.3.18
+----------
+ * Use s3 session prefix when building s3 paths, default to /
+ * Throw error upwards if we have no DB backdown
+ * Read session files from storage when org configured to do so
+
+v6.3.17
+----------
+ * Ignore contact tickets on ticketers which have been deleted
+
+v6.3.16
+----------
+ * Add ticket closed triggers and use to handle close ticket events
+ * Add ticket events and insert when opening/closing/reopening tickets
+
+v6.3.15
+----------
+ * Fix test which modifies org
+ * Update to latest goflow as last release was broken
+
+v6.3.14
+----------
+ * Update to latest goflow
+ * Write sessions to s3 on resumes (optionally)
+ * Add support for exclusion groups on triggers and generalize trigger matching
+
+v6.3.13
+----------
+ * Introduce runtime.Runtime
+ * Simplify testdata functions
+ * Various fixes from linter
+ * Simplify use of test contacts in handler tests
+ * Move test constants out of models package
+ * Remove reduntant resend_msgs task
+
+v6.3.12
+----------
+ * Update to latest goflow (legacy_extra is no longer an issue)
+ * Make Msg.next_attempt nullable
+ * Add web endpoint for msg resends so they can be a synchronous operation
+
+v6.3.11
+----------
+ * Expose open tickets as @contact.tickets
+
+v6.3.9
+----------
+ * Fix queueing of resent messages to courier and improve testing of queueing
+ * Update to latest goflow
+ * Add WA template translation namespace
+
+v6.3.8
+----------
+ * Add task to resend messages
+
+v6.3.7
+----------
+ * Update to latest goflow
+ * Update test database and rename Nexmo to Vonage
+
+v6.3.6
+----------
+ * Update to latest goflow
+
+v6.3.5
+----------
+ * Update to latest goflow
+
+v6.3.4
+----------
+ * Update to latest goflow
+ * Smarter loading for cache misses on org assets
+
+v6.3.3
+----------
+ * Update to latest goflow
+
+v6.3.2
+----------
+ * Simplify caching, keep orgs for 5s, reload everything
+
+v6.3.1
+----------
+ * Update to latest goflow
+
+v6.3.0
+----------
+ * Fail expirations that are no longer the active session
+
+v6.2.3
+----------
+ * Update to latest goflow with completed es and pt-BR translations
+
+v6.2.2
+----------
+ * Update to latest goflow
+
+v6.2.1
+----------
+ * use SaveRequest() so our ivr logs always have bodies
+
+v6.2.0
+----------
+ * 6.2.0 Release Candidate
+
+v6.2.0
+----------
+ * 6.2.0 Release Candidate
+
+v6.1.19 
+----------
+ * Fix campaign even firing for background flows
+ * IVR forwards for Nexmo and Twilio
+
+v6.1.18
+----------
+ * Update to latest goflow
+ * Rename tickets/internal package
+
+v6.1.17
+----------
+ * Should match referral trigger with case insensitive
+
+v6.1.16
+----------
+ * Update to latest goflow
+ * Add link local ips to default disallowed networks config
+
+v6.1.15
+----------
+ * Update phonenumbers lib
+ * Decrease locations cache timeout to 1 minute
+
+v6.1.14
+----------
+ * Support ElasticSearch 7.2 (backwards incompatible to Elastic 6.*)
+
+v6.1.13
+----------
+ * Update to latest goflow
+
+v6.1.12
+----------
+ * Update to latest goflow v0.110.0
+
+v6.1.11
+----------
+ * Update to latest goflow v0.109.4
+
+v6.1.10
+----------
+ * Simplify FCM client code
+ * Fix updating message status when id column is bigint
+ * Ensure courier messages are always queued for a single contact
+ * Fix not triggering FCM syncs for broadcasts and ticket reply messages
+
+v6.1.9
+----------
+ * Update to goflow v0.109.0
+
+v6.1.8
+----------
+ * Update to latest goflow 0.108.0
+
+v6.1.7
+----------
+ * Use background instead of passive
+
+v6.1.6
+----------
+ * Update to latest goflow v0.107.2
+ * Add support for passive flows
+
 v6.1.5
 ----------
  * Update to goflow v0.107.1

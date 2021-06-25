@@ -23,6 +23,7 @@ import (
 	"github.com/nyaruka/goflow/flows/routers/waits"
 	"github.com/nyaruka/goflow/flows/routers/waits/hints"
 	"github.com/nyaruka/goflow/utils"
+	"github.com/nyaruka/mailroom/config"
 	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/mailroom/core/models"
 
@@ -37,6 +38,15 @@ var BaseURL = `https://api.twilio.com`
 
 // IgnoreSignatures controls whether we ignore signatures (public for testing overriding)
 var IgnoreSignatures = false
+
+var dialStatusMap = map[string]flows.DialStatus{
+	"completed": flows.DialStatusAnswered,
+	"answered":  flows.DialStatusAnswered,
+	"busy":      flows.DialStatusBusy,
+	"no-answer": flows.DialStatusNoAnswer,
+	"failed":    flows.DialStatusFailed,
+	"canceled":  flows.DialStatusFailed,
+}
 
 const (
 	twilioChannelType     = models.ChannelType("T")
@@ -58,13 +68,6 @@ const (
 
 	sendURLConfig = "send_url"
 	baseURLConfig = "base_url"
-
-	errorBody = `<?xml version="1.0" encoding="UTF-8"?>
-	<Response>
-		<Say>An error was encountered. Goodbye.</Say>
-		<Hangup></Hangup>
-	</Response>
-	`
 )
 
 var validLanguageCodes = map[string]bool{
@@ -144,6 +147,10 @@ func NewClient(httpClient *http.Client, accountSID string, authToken string) ivr
 
 func (c *client) DownloadMedia(url string) (*http.Response, error) {
 	return http.Get(url)
+}
+
+func (c *client) PreprocessStatus(ctx context.Context, db *sqlx.DB, rp *redis.Pool, r *http.Request) ([]byte, error) {
+	return nil, nil
 }
 
 func (c *client) PreprocessResume(ctx context.Context, db *sqlx.DB, rp *redis.Pool, conn *models.ChannelConnection, r *http.Request) ([]byte, error) {
@@ -228,32 +235,52 @@ func (c *client) HangupCall(callID string) (*httpx.Trace, error) {
 }
 
 // InputForRequest returns the input for the passed in request, if any
-func (c *client) InputForRequest(r *http.Request) (string, utils.Attachment, error) {
-	// this could be a timeout, in which case we return nothing at all
+func (c *client) ResumeForRequest(r *http.Request) (ivr.Resume, error) {
+	// this could be a timeout, in which case we return an empty input
 	timeout := r.Form.Get("timeout")
 	if timeout == "true" {
-		return "", ivr.NilAttachment, nil
+		return ivr.InputResume{}, nil
 	}
 
-	// this could be empty, in which case we return nothing at all
+	// this could be empty, in which case we return an empty input
 	empty := r.Form.Get("empty")
 	if empty == "true" {
-		return "", ivr.NilAttachment, nil
+		return ivr.InputResume{}, nil
 	}
 
 	// otherwise grab the right field based on our wait type
 	waitType := r.Form.Get("wait_type")
 	switch waitType {
 	case "gather":
-		return r.Form.Get("Digits"), utils.Attachment(""), nil
+		return ivr.InputResume{Input: r.Form.Get("Digits")}, nil
+
 	case "record":
 		url := r.Form.Get("RecordingUrl")
 		if url == "" {
-			return "", ivr.NilAttachment, nil
+			return ivr.InputResume{}, nil
 		}
-		return "", utils.Attachment("audio/mp3:" + url + ".mp3"), nil
+		return ivr.InputResume{Attachment: utils.Attachment("audio/mp3:" + url + ".mp3")}, nil
+
+	case "dial":
+		twStatus := r.Form.Get("DialCallStatus")
+		status := dialStatusMap[twStatus]
+		if status == "" {
+			return nil, errors.Errorf("unknown Twilio DialCallStatus in callback: %s", twStatus)
+		}
+		durationStr := r.Form.Get("DialCallDuration")
+		var duration int64
+		if durationStr != "" {
+			var err error
+			duration, err = strconv.ParseInt(durationStr, 10, 64)
+			if err != nil {
+				return nil, errors.Errorf("invalid value for DialCallDuration: %s", durationStr)
+			}
+		}
+
+		return ivr.DialResume{Status: status, Duration: int(duration)}, nil
+
 	default:
-		return "", ivr.NilAttachment, errors.Errorf("unknown wait_type: %s", waitType)
+		return nil, errors.Errorf("unknown wait_type: %s", waitType)
 	}
 }
 
@@ -316,7 +343,7 @@ func (c *client) ValidateRequestSignature(r *http.Request) error {
 }
 
 // WriteSessionResponse writes a TWIML response for the events in the passed in session
-func (c *client) WriteSessionResponse(session *models.Session, number urns.URN, resumeURL string, r *http.Request, w http.ResponseWriter) error {
+func (c *client) WriteSessionResponse(ctx context.Context, rp *redis.Pool, channel *models.Channel, conn *models.ChannelConnection, session *models.Session, number urns.URN, resumeURL string, r *http.Request, w http.ResponseWriter) error {
 	// for errored sessions we should just output our error body
 	if session.Status() == models.SessionStatusFailed {
 		return errors.Errorf("cannot write IVR response for failed session")
@@ -429,6 +456,13 @@ type Redirect struct {
 	URL     string `xml:",chardata"`
 }
 
+type Dial struct {
+	XMLName string `xml:"Dial"`
+	Number  string `xml:",chardata"`
+	Action  string `xml:"action,attr"`
+	Timeout int    `xml:"timeout,attr,omitempty"`
+}
+
 type Gather struct {
 	XMLName     string        `xml:"Gather"`
 	NumDigits   int           `xml:"numDigits,attr,omitempty"`
@@ -461,7 +495,7 @@ func responseForSprint(number urns.URN, resumeURL string, w flows.ActivatedWait,
 			if len(event.Msg.Attachments()) == 0 {
 				country := envs.DeriveCountryFromTel(number.Path())
 				locale := envs.NewLocale(event.Msg.TextLanguage, country)
-				languageCode := locale.ToISO639_2()
+				languageCode := locale.ToBCP47()
 
 				if _, valid := validLanguageCodes[languageCode]; !valid {
 					languageCode = ""
@@ -469,7 +503,7 @@ func responseForSprint(number urns.URN, resumeURL string, w flows.ActivatedWait,
 				commands = append(commands, Say{Text: event.Msg.Text(), Language: languageCode})
 			} else {
 				for _, a := range event.Msg.Attachments() {
-					a = models.NormalizeAttachment(a)
+					a = models.NormalizeAttachment(config.Mailroom, a)
 					commands = append(commands, Play{URL: a.URL()})
 				}
 			}
@@ -477,34 +511,44 @@ func responseForSprint(number urns.URN, resumeURL string, w flows.ActivatedWait,
 	}
 
 	if w != nil {
-		msgWait, isMsgWait := w.(*waits.ActivatedMsgWait)
-		if !isMsgWait {
-			return "", errors.Errorf("unable to use wait of type: %s in IVR call", w.Type())
-		}
+		switch wait := w.(type) {
 
-		switch hint := msgWait.Hint().(type) {
-		case *hints.DigitsHint:
-			resumeURL = resumeURL + "&wait_type=gather"
-			gather := &Gather{
-				Action:   resumeURL,
-				Commands: commands,
-				Timeout:  gatherTimeout,
-			}
-			if hint.Count != nil {
-				gather.NumDigits = *hint.Count
-			}
-			gather.FinishOnKey = hint.TerminatedBy
-			r.Gather = gather
-			r.Commands = append(r.Commands, Redirect{URL: resumeURL + "&timeout=true"})
+		case *waits.ActivatedMsgWait:
+			switch hint := wait.Hint().(type) {
+			case *hints.DigitsHint:
+				resumeURL = resumeURL + "&wait_type=gather"
+				gather := &Gather{
+					Action:   resumeURL,
+					Commands: commands,
+					Timeout:  gatherTimeout,
+				}
+				if hint.Count != nil {
+					gather.NumDigits = *hint.Count
+				}
+				gather.FinishOnKey = hint.TerminatedBy
+				r.Gather = gather
+				r.Commands = append(r.Commands, Redirect{URL: resumeURL + "&timeout=true"})
 
-		case *hints.AudioHint:
-			resumeURL = resumeURL + "&wait_type=record"
-			commands = append(commands, Record{Action: resumeURL, MaxLength: recordTimeout})
-			commands = append(commands, Redirect{URL: resumeURL + "&empty=true"})
+			case *hints.AudioHint:
+				resumeURL = resumeURL + "&wait_type=record"
+				commands = append(commands, Record{Action: resumeURL, MaxLength: recordTimeout})
+				commands = append(commands, Redirect{URL: resumeURL + "&empty=true"})
+				r.Commands = commands
+
+			default:
+				return "", errors.Errorf("unable to use hint in IVR call, unknow type: %s", wait.Hint().Type())
+			}
+
+		case *waits.ActivatedDialWait:
+			dial := Dial{Action: resumeURL + "&wait_type=dial", Number: wait.URN().Path()}
+			if w.TimeoutSeconds() != nil {
+				dial.Timeout = *w.TimeoutSeconds()
+			}
+			commands = append(commands, dial)
 			r.Commands = commands
 
 		default:
-			return "", errors.Errorf("unable to use wait in IVR call, unknow type: %s", msgWait.Hint().Type())
+			return "", fmt.Errorf("unable to use wait type in Twilio call: %x", w)
 		}
 	} else {
 		// no wait? call is over, hang up

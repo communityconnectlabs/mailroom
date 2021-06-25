@@ -16,9 +16,10 @@ import (
 	_ "github.com/nyaruka/mailroom/core/handlers"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
 	"github.com/nyaruka/mailroom/web"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -73,7 +74,7 @@ func TestSearch(t *testing.T) {
 			}
 		  ]
 		}
-	}`, models.CathyID)
+	}`, testdata.Cathy.ID)
 
 	tcs := []struct {
 		URL               string
@@ -96,34 +97,34 @@ func TestSearch(t *testing.T) {
 		{
 			Method:         "POST",
 			URL:            "/mr/contact/search",
-			Body:           fmt.Sprintf(`{"org_id": 1, "query": "birthday = tomorrow", "group_uuid": "%s"}`, models.AllContactsGroupUUID),
+			Body:           fmt.Sprintf(`{"org_id": 1, "query": "birthday = tomorrow", "group_uuid": "%s"}`, testdata.AllContactsGroup.UUID),
 			ExpectedStatus: 400,
 			ExpectedError:  "can't resolve 'birthday' to attribute, scheme or field",
 		},
 		{
 			Method:         "POST",
 			URL:            "/mr/contact/search",
-			Body:           fmt.Sprintf(`{"org_id": 1, "query": "age > tomorrow", "group_uuid": "%s"}`, models.AllContactsGroupUUID),
+			Body:           fmt.Sprintf(`{"org_id": 1, "query": "age > tomorrow", "group_uuid": "%s"}`, testdata.AllContactsGroup.UUID),
 			ExpectedStatus: 400,
 			ExpectedError:  "can't convert 'tomorrow' to a number",
 		},
 		{
 			Method:         "POST",
 			URL:            "/mr/contact/search",
-			Body:           fmt.Sprintf(`{"org_id": 1, "query": "Cathy", "group_uuid": "%s"}`, models.AllContactsGroupUUID),
+			Body:           fmt.Sprintf(`{"org_id": 1, "query": "Cathy", "group_uuid": "%s"}`, testdata.AllContactsGroup.UUID),
 			ESResponse:     singleESResponse,
 			ExpectedStatus: 200,
-			ExpectedHits:   []models.ContactID{models.CathyID},
+			ExpectedHits:   []models.ContactID{testdata.Cathy.ID},
 			ExpectedQuery:  `name ~ "Cathy"`,
 			ExpectedFields: []string{"name"},
 		},
 		{
 			Method:         "POST",
 			URL:            "/mr/contact/search",
-			Body:           fmt.Sprintf(`{"org_id": 1, "query": "Cathy", "group_uuid": "%s", "exclude_ids": [%d, %d]}`, models.AllContactsGroupUUID, models.BobID, models.GeorgeID),
+			Body:           fmt.Sprintf(`{"org_id": 1, "query": "Cathy", "group_uuid": "%s", "exclude_ids": [%d, %d]}`, testdata.AllContactsGroup.UUID, testdata.Bob.ID, testdata.George.ID),
 			ESResponse:     singleESResponse,
 			ExpectedStatus: 200,
-			ExpectedHits:   []models.ContactID{models.CathyID},
+			ExpectedHits:   []models.ContactID{testdata.Cathy.ID},
 			ExpectedQuery:  `name ~ "Cathy"`,
 			ExpectedFields: []string{"name"},
 			ExpectedESRequest: `{
@@ -172,26 +173,27 @@ func TestSearch(t *testing.T) {
 							"order": "desc"
 						}
 					}
-				]
+				],
+				"track_total_hits": true
 			}`,
 		},
 		{
 			Method:         "POST",
 			URL:            "/mr/contact/search",
-			Body:           fmt.Sprintf(`{"org_id": 1, "query": "AGE = 10 and gender = M", "group_uuid": "%s"}`, models.AllContactsGroupUUID),
+			Body:           fmt.Sprintf(`{"org_id": 1, "query": "AGE = 10 and gender = M", "group_uuid": "%s"}`, testdata.AllContactsGroup.UUID),
 			ESResponse:     singleESResponse,
 			ExpectedStatus: 200,
-			ExpectedHits:   []models.ContactID{models.CathyID},
+			ExpectedHits:   []models.ContactID{testdata.Cathy.ID},
 			ExpectedQuery:  `age = 10 AND gender = "M"`,
 			ExpectedFields: []string{"age", "gender"},
 		},
 		{
 			Method:         "POST",
 			URL:            "/mr/contact/search",
-			Body:           fmt.Sprintf(`{"org_id": 1, "query": "", "group_uuid": "%s"}`, models.AllContactsGroupUUID),
+			Body:           fmt.Sprintf(`{"org_id": 1, "query": "", "group_uuid": "%s"}`, testdata.AllContactsGroup.UUID),
 			ESResponse:     singleESResponse,
 			ExpectedStatus: 200,
-			ExpectedHits:   []models.ContactID{models.CathyID},
+			ExpectedHits:   []models.ContactID{testdata.Cathy.ID},
 			ExpectedQuery:  ``,
 			ExpectedFields: []string{},
 		},
@@ -240,5 +242,5 @@ func TestSearch(t *testing.T) {
 func TestParse(t *testing.T) {
 	testsuite.Reset()
 
-	web.RunWebTests(t, "testdata/parse_query.json")
+	web.RunWebTests(t, "testdata/parse_query.json", nil)
 }

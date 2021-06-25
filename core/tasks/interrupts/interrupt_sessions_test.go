@@ -4,11 +4,10 @@ import (
 	"testing"
 
 	"github.com/nyaruka/gocommon/uuids"
-	"github.com/nyaruka/mailroom"
-	"github.com/nyaruka/mailroom/config"
 	_ "github.com/nyaruka/mailroom/core/handlers"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -16,9 +15,8 @@ import (
 func TestInterrupts(t *testing.T) {
 	testsuite.Reset()
 	ctx := testsuite.CTX()
-	db := testsuite.DB()
-
-	mr := &mailroom.Mailroom{Config: config.Mailroom, DB: db, RP: testsuite.RP(), ElasticClient: nil}
+	rt := testsuite.RT()
+	db := rt.DB
 
 	insertConnection := func(orgID models.OrgID, channelID models.ChannelID, contactID models.ContactID, urnID models.URNID) models.ConnectionID {
 		var connectionID models.ConnectionID
@@ -34,8 +32,8 @@ func TestInterrupts(t *testing.T) {
 	insertSession := func(orgID models.OrgID, contactID models.ContactID, connectionID models.ConnectionID, currentFlowID models.FlowID) models.SessionID {
 		var sessionID models.SessionID
 		err := db.Get(&sessionID,
-			`INSERT INTO flows_flowsession(uuid, status, responded, created_on, org_id, contact_id, connection_id, current_flow_id)
-									VALUES($1, 'W', false, NOW(), $2, $3, $4, $5) RETURNING id`,
+			`INSERT INTO flows_flowsession(uuid, status, responded, created_on, org_id, contact_id, connection_id, current_flow_id, session_type)
+									VALUES($1, 'W', false, NOW(), $2, $3, $4, $5, 'M') RETURNING id`,
 			uuids.New(), orgID, contactID, connectionID, currentFlowID)
 		assert.NoError(t, err)
 
@@ -57,23 +55,23 @@ func TestInterrupts(t *testing.T) {
 			[5]string{"W", "W", "W", "W", "I"},
 		},
 		{
-			[]models.ContactID{models.CathyID}, nil, nil,
+			[]models.ContactID{testdata.Cathy.ID}, nil, nil,
 			[5]string{"I", "W", "W", "W", "I"},
 		},
 		{
-			[]models.ContactID{models.CathyID, models.GeorgeID}, nil, nil,
+			[]models.ContactID{testdata.Cathy.ID, testdata.George.ID}, nil, nil,
 			[5]string{"I", "I", "W", "W", "I"},
 		},
 		{
-			nil, []models.ChannelID{models.TwilioChannelID}, nil,
+			nil, []models.ChannelID{testdata.TwilioChannel.ID}, nil,
 			[5]string{"W", "W", "I", "W", "I"},
 		},
 		{
-			nil, nil, []models.FlowID{models.PickNumberFlowID},
+			nil, nil, []models.FlowID{testdata.PickANumber.ID},
 			[5]string{"W", "W", "W", "I", "I"},
 		},
 		{
-			[]models.ContactID{models.CathyID, models.GeorgeID}, []models.ChannelID{models.TwilioChannelID}, []models.FlowID{models.PickNumberFlowID},
+			[]models.ContactID{testdata.Cathy.ID, testdata.George.ID}, []models.ChannelID{testdata.TwilioChannel.ID}, []models.FlowID{testdata.PickANumber.ID},
 			[5]string{"I", "I", "I", "I", "I"},
 		},
 	}
@@ -83,18 +81,18 @@ func TestInterrupts(t *testing.T) {
 		db.MustExec(`UPDATE flows_flowsession SET status='C', ended_on=NOW() WHERE status = 'W';`)
 
 		// twilio connection
-		twilioConnectionID := insertConnection(models.Org1, models.TwilioChannelID, models.AlexandriaID, models.AlexandriaURNID)
+		twilioConnectionID := insertConnection(testdata.Org1.ID, testdata.TwilioChannel.ID, testdata.Alexandria.ID, testdata.Alexandria.URNID)
 
 		sessionIDs := make([]models.SessionID, 5)
 
 		// insert our dummy contact sessions
-		sessionIDs[0] = insertSession(models.Org1, models.CathyID, models.NilConnectionID, models.FavoritesFlowID)
-		sessionIDs[1] = insertSession(models.Org1, models.GeorgeID, models.NilConnectionID, models.FavoritesFlowID)
-		sessionIDs[2] = insertSession(models.Org1, models.AlexandriaID, twilioConnectionID, models.FavoritesFlowID)
-		sessionIDs[3] = insertSession(models.Org1, models.BobID, models.NilConnectionID, models.PickNumberFlowID)
+		sessionIDs[0] = insertSession(testdata.Org1.ID, testdata.Cathy.ID, models.NilConnectionID, testdata.Favorites.ID)
+		sessionIDs[1] = insertSession(testdata.Org1.ID, testdata.George.ID, models.NilConnectionID, testdata.Favorites.ID)
+		sessionIDs[2] = insertSession(testdata.Org1.ID, testdata.Alexandria.ID, twilioConnectionID, testdata.Favorites.ID)
+		sessionIDs[3] = insertSession(testdata.Org1.ID, testdata.Bob.ID, models.NilConnectionID, testdata.PickANumber.ID)
 
 		// a session we always end explicitly
-		sessionIDs[4] = insertSession(models.Org1, models.BobID, models.NilConnectionID, models.FavoritesFlowID)
+		sessionIDs[4] = insertSession(testdata.Org1.ID, testdata.Bob.ID, models.NilConnectionID, testdata.Favorites.ID)
 
 		// create our task
 		task := &InterruptSessionsTask{
@@ -105,7 +103,7 @@ func TestInterrupts(t *testing.T) {
 		}
 
 		// execute it
-		err := task.Perform(ctx, mr, models.Org1)
+		err := task.Perform(ctx, rt, testdata.Org1.ID)
 		assert.NoError(t, err)
 
 		// check session statuses are as expected

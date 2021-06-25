@@ -2,6 +2,7 @@ package testsuite
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,20 +11,28 @@ import (
 	"testing"
 
 	"github.com/nyaruka/gocommon/storage"
+	"github.com/nyaruka/goflow/test"
+	"github.com/nyaruka/mailroom/config"
+	"github.com/nyaruka/mailroom/core/models"
+	"github.com/nyaruka/mailroom/runtime"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-const storageDir = "_test_storage"
+const MediaStorageDir = "_test_media_storage"
+const SessionStorageDir = "_test_session_storage"
 
 // Reset clears out both our database and redis DB
 func Reset() (context.Context, *sqlx.DB, *redis.Pool) {
 	logrus.SetLevel(logrus.DebugLevel)
 	ResetDB()
 	ResetRP()
+
+	models.FlushCache()
 
 	return CTX(), DB(), RP()
 }
@@ -101,14 +110,23 @@ func CTX() context.Context {
 	return context.Background()
 }
 
-// Storage returns our storage for tests
-func Storage() storage.Storage {
-	return storage.NewFS(storageDir)
+// MediaStorage returns our media storage for tests
+func MediaStorage() storage.Storage {
+	return storage.NewFS(MediaStorageDir)
+}
+
+// SessionStorage returns our session storage for tests
+func SessionStorage() storage.Storage {
+	return storage.NewFS(SessionStorageDir)
 }
 
 // ResetStorage clears our storage for tests
 func ResetStorage() {
-	if err := os.RemoveAll(storageDir); err != nil {
+	if err := os.RemoveAll(MediaStorageDir); err != nil {
+		panic(err)
+	}
+
+	if err := os.RemoveAll(SessionStorageDir); err != nil {
 		panic(err)
 	}
 }
@@ -130,4 +148,63 @@ func AssertQueryCount(t *testing.T, db *sqlx.DB, sql string, args []interface{},
 		assert.Fail(t, "error performing query: %s - %s", sql, err)
 	}
 	assert.Equal(t, count, c, errMsg...)
+}
+
+// AssertCourierQueues asserts the sizes of message batches in the named courier queues
+func AssertCourierQueues(t *testing.T, expected map[string][]int, errMsg ...interface{}) {
+	rc := RC()
+	defer rc.Close()
+
+	queueKeys, err := redis.Strings(rc.Do("KEYS", "msgs:????????-*"))
+	require.NoError(t, err)
+
+	actual := make(map[string][]int, len(queueKeys))
+	for _, queueKey := range queueKeys {
+		size, err := redis.Int64(rc.Do("ZCARD", queueKey))
+		require.NoError(t, err)
+		actual[queueKey] = make([]int, size)
+
+		if size > 0 {
+			results, err := redis.Values(rc.Do("ZPOPMAX", queueKey, size))
+			require.NoError(t, err)
+			require.Equal(t, int(size*2), len(results)) // result is (item, score, item, score, ...)
+
+			// unmarshal each item in the queue as a batch of messages
+			for i := 0; i < int(size); i++ {
+				batchJSON := results[i*2].([]byte)
+				var batch []map[string]interface{}
+				err = json.Unmarshal(batchJSON, &batch)
+				require.NoError(t, err)
+
+				actual[queueKey][i] = len(batch)
+			}
+		}
+	}
+
+	assert.Equal(t, expected, actual, errMsg...)
+}
+
+// AssertContactTasks asserts that the given contact has the given tasks queued for them
+func AssertContactTasks(t *testing.T, orgID models.OrgID, contactID models.ContactID, expected []string, msgAndArgs ...interface{}) {
+	rc := RC()
+	defer rc.Close()
+
+	tasks, err := redis.Strings(rc.Do("LRANGE", fmt.Sprintf("c:%d:%d", orgID, contactID), 0, -1))
+	require.NoError(t, err)
+
+	expectedJSON, _ := json.Marshal(expected)
+	actualJSON, _ := json.Marshal(tasks)
+
+	test.AssertEqualJSON(t, expectedJSON, actualJSON, "")
+}
+
+func RT() *runtime.Runtime {
+	return &runtime.Runtime{
+		RP:             RP(),
+		DB:             DB(),
+		ES:             nil,
+		MediaStorage:   MediaStorage(),
+		SessionStorage: SessionStorage(),
+		Config:         config.NewMailroomConfig(),
+	}
 }

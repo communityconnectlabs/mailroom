@@ -1,15 +1,16 @@
 package rocketchat
 
 import (
-	"github.com/nyaruka/gocommon/httpx"
-	"github.com/nyaruka/gocommon/urns"
-	"github.com/nyaruka/gocommon/uuids"
-	"github.com/nyaruka/goflow/flows"
-	"github.com/nyaruka/goflow/utils"
-	"github.com/nyaruka/mailroom/core/models"
-	"github.com/pkg/errors"
 	"net/http"
 	"strconv"
+
+	"github.com/nyaruka/gocommon/httpx"
+	"github.com/nyaruka/gocommon/urns"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/utils"
+	"github.com/nyaruka/mailroom/config"
+	"github.com/nyaruka/mailroom/core/models"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -32,7 +33,7 @@ type service struct {
 }
 
 // NewService creates a new RocketChat ticket service
-func NewService(httpClient *http.Client, httpRetries *httpx.RetryConfig, ticketer *flows.Ticketer, config map[string]string) (models.TicketService, error) {
+func NewService(rtCfg *config.Config, httpClient *http.Client, httpRetries *httpx.RetryConfig, ticketer *flows.Ticketer, config map[string]string) (models.TicketService, error) {
 	baseURL := config[configBaseURL]
 	secret := config[configSecret]
 
@@ -51,6 +52,7 @@ type VisitorToken models.ContactID
 
 // Open opens a ticket which for RocketChat means open a room associated to a visitor user
 func (s *service) Open(session flows.Session, subject, body string, logHTTP flows.HTTPLogCallback) (*flows.Ticket, error) {
+	ticket := flows.OpenTicket(s.ticketer, subject, body)
 	contact := session.Contact()
 	email := ""
 	phone := ""
@@ -68,7 +70,6 @@ func (s *service) Open(session flows.Session, subject, body string, logHTTP flow
 		}
 	}
 
-	ticketUUID := flows.TicketUUID(uuids.New())
 	room := &Room{
 		Visitor: Visitor{
 			Token:       VisitorToken(contact.ID()).String(),
@@ -77,7 +78,7 @@ func (s *service) Open(session flows.Session, subject, body string, logHTTP flow
 			Email:       email,
 			Phone:       phone,
 		},
-		TicketID: string(ticketUUID),
+		TicketID: string(ticket.UUID()),
 	}
 
 	roomID, trace, err := s.client.CreateRoom(room)
@@ -88,7 +89,8 @@ func (s *service) Open(session flows.Session, subject, body string, logHTTP flow
 		return nil, errors.Wrap(err, "error calling RocketChat")
 	}
 
-	return flows.NewTicket(ticketUUID, s.ticketer.Reference(), subject, body, roomID), nil
+	ticket.SetExternalID(roomID)
+	return ticket, nil
 }
 
 func (s *service) Forward(ticket *models.Ticket, msgUUID flows.MsgUUID, text string, attachments []utils.Attachment, logHTTP flows.HTTPLogCallback) error {

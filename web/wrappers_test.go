@@ -8,7 +8,9 @@ import (
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/mailroom/core/models"
+	"github.com/nyaruka/mailroom/runtime"
 	"github.com/nyaruka/mailroom/testsuite"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
 	"github.com/nyaruka/mailroom/web"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,8 +27,8 @@ func TestWithHTTPLogs(t *testing.T) {
 		},
 	}))
 
-	handler := func(ctx context.Context, s *web.Server, r *http.Request, l *models.HTTPLogger) (interface{}, int, error) {
-		ticketer, _ := models.LookupTicketerByUUID(ctx, s.DB, models.MailgunUUID)
+	handler := func(ctx context.Context, rt *runtime.Runtime, r *http.Request, l *models.HTTPLogger) (interface{}, int, error) {
+		ticketer, _ := models.LookupTicketerByUUID(ctx, rt.DB, testdata.Mailgun.UUID)
 
 		logger := l.Ticketer(ticketer)
 
@@ -47,9 +49,8 @@ func TestWithHTTPLogs(t *testing.T) {
 	}
 
 	// simulate handler being invoked by server
-	server := &web.Server{DB: testsuite.DB()}
 	wrapped := web.WithHTTPLogs(handler)
-	response, status, err := wrapped(testsuite.CTX(), server, nil)
+	response, status, err := wrapped(testsuite.CTX(), testsuite.RT(), nil)
 
 	// check response from handler
 	assert.Equal(t, map[string]string{"status": "OK"}, response)
@@ -57,5 +58,5 @@ func TestWithHTTPLogs(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check HTTP logs were created
-	testsuite.AssertQueryCount(t, testsuite.DB(), `select count(*) from request_logs_httplog where ticketer_id = $1;`, []interface{}{models.MailgunID}, 2)
+	testsuite.AssertQueryCount(t, testsuite.DB(), `select count(*) from request_logs_httplog where ticketer_id = $1;`, []interface{}{testdata.Mailgun.ID}, 2)
 }

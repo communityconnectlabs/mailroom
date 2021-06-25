@@ -12,6 +12,7 @@ import (
 	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/core/queue"
+	"github.com/nyaruka/mailroom/runtime"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -20,7 +21,7 @@ func init() {
 	mailroom.AddTaskFunction(queue.StartIVRFlowBatch, handleFlowStartTask)
 }
 
-func handleFlowStartTask(ctx context.Context, mr *mailroom.Mailroom, task *queue.Task) error {
+func handleFlowStartTask(ctx context.Context, rt *runtime.Runtime, task *queue.Task) error {
 	// decode our task body
 	if task.Type != queue.StartIVRFlowBatch {
 		return errors.Errorf("unknown event type passed to ivr worker: %s", task.Type)
@@ -31,7 +32,7 @@ func handleFlowStartTask(ctx context.Context, mr *mailroom.Mailroom, task *queue
 		return errors.Wrapf(err, "error unmarshalling flow start batch: %s", string(task.Task))
 	}
 
-	return HandleFlowStartBatch(ctx, mr.Config, mr.DB, mr.RP, batch)
+	return HandleFlowStartBatch(ctx, rt.Config, rt.DB, rt.RP, batch)
 }
 
 // HandleFlowStartBatch starts a batch of contacts in an IVR flow
@@ -57,7 +58,7 @@ func HandleFlowStartBatch(bg context.Context, config *config.Config, db *sqlx.DB
 	// filter out our list of contacts to only include those that should be started
 	if !batch.IncludeActive() {
 		// find all participants active in other sessions
-		active, err := models.FindActiveSessionOverlap(ctx, db, models.IVRFlow, batch.ContactIDs())
+		active, err := models.FindActiveSessionOverlap(ctx, db, models.FlowTypeVoice, batch.ContactIDs())
 		if err != nil {
 			return errors.Wrapf(err, "error finding other active sessions: %d", batch.FlowID())
 		}

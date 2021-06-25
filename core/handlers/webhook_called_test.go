@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/nyaruka/mailroom/core/handlers"
-	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
 
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/goflow/flows"
@@ -41,10 +41,10 @@ func TestWebhookCalled(t *testing.T) {
 	tcs := []handlers.TestCase{
 		{
 			Actions: handlers.ContactActionMap{
-				models.CathyID: []flows.Action{
+				testdata.Cathy: []flows.Action{
 					actions.NewCallResthook(handlers.NewActionUUID(), "foo", "foo"),
 				},
-				models.GeorgeID: []flows.Action{
+				testdata.George: []flows.Action{
 					actions.NewCallResthook(handlers.NewActionUUID(), "foo", "foo"),
 					actions.NewCallWebhook(handlers.NewActionUUID(), "GET", "http://rapidpro.io/?unsub=1", nil, "", ""),
 				},
@@ -67,22 +67,22 @@ func TestWebhookCalled(t *testing.T) {
 				},
 				{
 					SQL:   "select count(*) from api_webhookresult where contact_id = $1 AND status_code = 200",
-					Args:  []interface{}{models.CathyID},
+					Args:  []interface{}{testdata.Cathy.ID},
 					Count: 1,
 				},
 				{
 					SQL:   "select count(*) from api_webhookresult where contact_id = $1 AND status_code = 410",
-					Args:  []interface{}{models.CathyID},
+					Args:  []interface{}{testdata.Cathy.ID},
 					Count: 1,
 				},
 				{
 					SQL:   "select count(*) from api_webhookresult where contact_id = $1",
-					Args:  []interface{}{models.GeorgeID},
+					Args:  []interface{}{testdata.George.ID},
 					Count: 3,
 				},
 				{
 					SQL:   "select count(*) from api_webhookevent where org_id = $1",
-					Args:  []interface{}{models.Org1},
+					Args:  []interface{}{testdata.Org1.ID},
 					Count: 2,
 				},
 			},

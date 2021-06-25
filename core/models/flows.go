@@ -27,19 +27,26 @@ type FlowType string
 
 // flow type constants
 const (
-	IVRFlow       = FlowType("V")
-	MessagingFlow = FlowType("M")
-	SurveyorFlow  = FlowType("S")
+	FlowTypeMessaging  = FlowType("M")
+	FlowTypeBackground = FlowType("B")
+	FlowTypeSurveyor   = FlowType("S")
+	FlowTypeVoice      = FlowType("V")
 )
+
+// Interrupts returns whether this flow type interrupts existing sessions
+func (t FlowType) Interrupts() bool {
+	return t != FlowTypeBackground
+}
 
 const (
 	flowConfigIVRRetryMinutes = "ivr_retry"
 )
 
 var flowTypeMapping = map[flows.FlowType]FlowType{
-	flows.FlowTypeMessaging:        MessagingFlow,
-	flows.FlowTypeVoice:            IVRFlow,
-	flows.FlowTypeMessagingOffline: SurveyorFlow,
+	flows.FlowTypeMessaging:           FlowTypeMessaging,
+	flows.FlowTypeMessagingBackground: FlowTypeBackground,
+	flows.FlowTypeMessagingOffline:    FlowTypeSurveyor,
+	flows.FlowTypeVoice:               FlowTypeVoice,
 }
 
 // Flow is the mailroom type for a flow
@@ -99,7 +106,7 @@ func (f *Flow) cloneWithNewDefinition(def []byte) *Flow {
 	return &c
 }
 
-func flowIDForUUID(ctx context.Context, tx *sqlx.Tx, oa *OrgAssets, flowUUID assets.FlowUUID) (FlowID, error) {
+func FlowIDForUUID(ctx context.Context, tx *sqlx.Tx, oa *OrgAssets, flowUUID assets.FlowUUID) (FlowID, error) {
 	// first try to look up in our assets
 	flow, _ := oa.Flow(flowUUID)
 	if flow != nil {
@@ -112,11 +119,11 @@ func flowIDForUUID(ctx context.Context, tx *sqlx.Tx, oa *OrgAssets, flowUUID ass
 	return flowID, err
 }
 
-func loadFlowByUUID(ctx context.Context, db Queryer, orgID OrgID, flowUUID assets.FlowUUID) (*Flow, error) {
+func LoadFlowByUUID(ctx context.Context, db Queryer, orgID OrgID, flowUUID assets.FlowUUID) (*Flow, error) {
 	return loadFlow(ctx, db, selectFlowByUUIDSQL, orgID, flowUUID)
 }
 
-func loadFlowByID(ctx context.Context, db Queryer, orgID OrgID, flowID FlowID) (*Flow, error) {
+func LoadFlowByID(ctx context.Context, db Queryer, orgID OrgID, flowID FlowID) (*Flow, error) {
 	return loadFlow(ctx, db, selectFlowByIDSQL, orgID, flowID)
 }
 

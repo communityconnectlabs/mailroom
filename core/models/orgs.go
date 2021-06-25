@@ -20,6 +20,7 @@ import (
 	"github.com/nyaruka/goflow/services/airtime/dtone"
 	"github.com/nyaruka/goflow/services/email/smtp"
 	"github.com/nyaruka/goflow/utils"
+	"github.com/nyaruka/goflow/utils/smtpx"
 	"github.com/nyaruka/mailroom/config"
 	"github.com/nyaruka/mailroom/core/goflow"
 	"github.com/nyaruka/mailroom/utils/dbutil"
@@ -30,11 +31,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var emailRetries = smtpx.NewFixedRetries(time.Second*3, time.Second*6)
+
 // Register a airtime service factory with the engine
 func init() {
 	// give airtime transfers an extra long timeout
 	airtimeHTTPClient := &http.Client{Timeout: time.Duration(120 * time.Second)}
-	airtimeHTTPRetries := httpx.NewFixedRetries(5, 10)
+	airtimeHTTPRetries := httpx.NewFixedRetries(time.Second*5, time.Second*10)
 
 	goflow.RegisterEmailServiceFactory(
 		func(session flows.Session) (flows.EmailService, error) {
@@ -52,20 +55,22 @@ func init() {
 // OrgID is our type for orgs ids
 type OrgID int
 
-// UserID is our type for user ids used by modified_by, which can be null
-type UserID null.Int
+// SessionStorageMode is our type for how we persist our sessions
+type SessionStorageMode string
 
 const (
 	// NilOrgID is the id 0 considered as nil org id
 	NilOrgID = OrgID(0)
 
-	// NilUserID si the id 0 considered as nil user id
-	NilUserID = UserID(0)
+	configSMTPServer  = "smtp_server"
+	configDTOneKey    = "dtone_key"
+	configDTOneSecret = "dtone_secret"
 
-	configSMTPServer    = "smtp_server"
-	configDTOneLogin    = "TRANSFERTO_ACCOUNT_LOGIN"
-	configDTOneToken    = "TRANSFERTO_AIRTIME_API_TOKEN"
-	configDTOnecurrency = "TRANSFERTO_ACCOUNT_CURRENCY"
+	configSessionStorageMode = "session_storage_mode"
+
+	DBSessions      = SessionStorageMode("db")
+	S3Sessions      = SessionStorageMode("s3")
+	S3WriteSessions = SessionStorageMode("s3_write")
 )
 
 // Org is mailroom's type for RapidPro orgs. It also implements the envs.Environment interface for GoFlow
@@ -87,6 +92,10 @@ func (o *Org) Suspended() bool { return o.o.Suspended }
 
 // UsesTopups returns whether the org uses topups
 func (o *Org) UsesTopups() bool { return o.o.UsesTopups }
+
+func (o *Org) SessionStorageMode() SessionStorageMode {
+	return SessionStorageMode(o.ConfigValue(configSessionStorageMode, string(DBSessions)))
+}
 
 // DateFormat returns the date format for this org
 func (o *Org) DateFormat() envs.DateFormat { return o.env.DateFormat() }
@@ -158,23 +167,22 @@ func (o *Org) EmailService(httpClient *http.Client) (flows.EmailService, error) 
 	if connectionURL == "" {
 		return nil, errors.New("missing SMTP configuration")
 	}
-	return smtp.NewService(connectionURL)
+	return smtp.NewService(connectionURL, emailRetries)
 }
 
 // AirtimeService returns the airtime service for this org if one is configured
 func (o *Org) AirtimeService(httpClient *http.Client, httpRetries *httpx.RetryConfig) (flows.AirtimeService, error) {
-	login := o.ConfigValue(configDTOneLogin, "")
-	token := o.ConfigValue(configDTOneToken, "")
-	currency := o.ConfigValue(configDTOnecurrency, "")
+	key := o.ConfigValue(configDTOneKey, "")
+	secret := o.ConfigValue(configDTOneSecret, "")
 
-	if login == "" || token == "" {
-		return nil, errors.Errorf("missing %s or %s on DTOne configuration for org: %d", configDTOneLogin, configDTOneToken, o.ID())
+	if key == "" || secret == "" {
+		return nil, errors.Errorf("missing %s or %s on DTOne configuration for org: %d", configDTOneKey, configDTOneSecret, o.ID())
 	}
-	return dtone.NewService(httpClient, httpRetries, login, token, currency), nil
+	return dtone.NewService(httpClient, httpRetries, key, secret), nil
 }
 
 // StoreAttachment saves an attachment to storage
-func (o *Org) StoreAttachment(s storage.Storage, filename string, contentType string, content io.ReadCloser) (utils.Attachment, error) {
+func (o *Org) StoreAttachment(ctx context.Context, s storage.Storage, filename string, contentType string, content io.ReadCloser) (utils.Attachment, error) {
 	prefix := config.Mailroom.S3MediaPrefix
 
 	// read the content
@@ -191,7 +199,7 @@ func (o *Org) StoreAttachment(s storage.Storage, filename string, contentType st
 
 	path := o.attachmentPath(prefix, filename)
 
-	url, err := s.Put(path, contentType, contentBytes)
+	url, err := s.Put(ctx, path, contentType, contentBytes)
 	if err != nil {
 		return "", errors.Wrapf(err, "unable to store attachment content")
 	}
@@ -228,12 +236,12 @@ func orgFromSession(session flows.Session) *Org {
 	return session.Assets().Source().(*OrgAssets).Org()
 }
 
-// loadOrg loads the org for the passed in id, returning any error encountered
-func loadOrg(ctx context.Context, db sqlx.Queryer, orgID OrgID) (*Org, error) {
+// LoadOrg loads the org for the passed in id, returning any error encountered
+func LoadOrg(ctx context.Context, cfg *config.Config, db sqlx.Queryer, orgID OrgID) (*Org, error) {
 	start := time.Now()
 
 	org := &Org{}
-	rows, err := db.Queryx(selectOrgByID, orgID, config.Mailroom.MaxValueLength)
+	rows, err := db.Queryx(selectOrgByID, orgID, cfg.MaxValueLength)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error loading org: %d", orgID)
 	}
@@ -263,8 +271,7 @@ SELECT ROW_TO_JSON(o) FROM (SELECT
 	timezone,
 	(SELECT CASE is_anon WHEN TRUE THEN 'urns' WHEN FALSE THEN 'none' END) AS redaction_policy,
 	$2::int AS max_value_length,
-	(SELECT iso_code FROM orgs_language WHERE id = o.primary_language_id) AS default_language,
-	(SELECT ARRAY_AGG(iso_code) FROM orgs_language WHERE org_id = o.id) AS allowed_languages,
+	flow_languages AS allowed_languages,
 	COALESCE(
 		(
 			SELECT
