@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nyaruka/gocommon/urns"
 	"github.com/greatnonprofits-nfp/goflow/assets"
 	"github.com/greatnonprofits-nfp/goflow/envs"
 	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
@@ -227,7 +227,7 @@ func TestGetOrCreateContact(t *testing.T) {
 			[]urns.URN{urns.URN("telegram:100001")},
 			newContact(), // creates new contact
 			[]urns.URN{"telegram:100001?channel=74729f45-7f29-4868-9dc4-90e491e3c7d8&id=20123&priority=1000"},
-			false,
+			true,
 			models.TwilioChannelID,
 			[]assets.GroupUUID{"d636c966-79c1-4417-9f1c-82ad629773a2"},
 		},
@@ -236,7 +236,7 @@ func TestGetOrCreateContact(t *testing.T) {
 			[]urns.URN{urns.URN("telegram:100001")},
 			prevContact(), // returns the same created contact
 			[]urns.URN{"telegram:100001?channel=74729f45-7f29-4868-9dc4-90e491e3c7d8&id=20123&priority=1000"},
-			true,
+			false,
 			models.NilChannelID,
 			[]assets.GroupUUID{"d636c966-79c1-4417-9f1c-82ad629773a2"},
 		},
