@@ -49,7 +49,7 @@ func TestOrgs(t *testing.T) {
 
 	org, err = loadOrg(ctx, tx, 2)
 	assert.NoError(t, err)
-	assert.Equal(t, []envs.Language{"eng", "fra"}, org.AllowedLanguages())
+	assert.Equal(t, []envs.Language{"fra", "eng"}, org.AllowedLanguages())
 	assert.Equal(t, envs.Language("eng"), org.DefaultLanguage())
 	assert.Equal(t, "en", org.DefaultLocale().ToISO639_2())
 
