@@ -301,8 +301,8 @@ github.com/gostaticanalysis/comment v1.3.0/go.mod h1:xMicKDx7XRXYdVwY9f9wQpDJVnq
 github.com/gostaticanalysis/comment v1.4.1/go.mod h1:ih6ZxzTHLdadaiSnF5WY3dxUoXfXAlTaRzuaNDlSado=
 github.com/gostaticanalysis/forcetypeassert v0.0.0-20200621232751-01d4955beaa5/go.mod h1:qZEedyP/sY1lTGV1uJ3VhWZ2mqag3IkWsDHVbplHXak=
 github.com/gostaticanalysis/nilerr v0.1.1/go.mod h1:wZYb6YI5YAxxq0i1+VJbY0s2YONW0HU0GPE3+5PWN4A=
-github.com/greatnonprofits-nfp/goflow v0.50.3-0.20211002030425-74b491abbd55 h1:dVe45mFK8Viqa7DHSQlq0b8KqWIYqZ0muIlCSRzx4GI=
-github.com/greatnonprofits-nfp/goflow v0.50.3-0.20211002030425-74b491abbd55/go.mod h1:5Aj0l8WVRHRHSQwssGFMtjqfc/K8bDG1l4fEkWpFBMc=
+github.com/greatnonprofits-nfp/goflow v0.50.3-0.20211123153925-868952fa1deb h1:GT343S1FP0bYwXyOF/U9msl6n6l0b8zLHm1muoQStTE=
+github.com/greatnonprofits-nfp/goflow v0.50.3-0.20211123153925-868952fa1deb/go.mod h1:5Aj0l8WVRHRHSQwssGFMtjqfc/K8bDG1l4fEkWpFBMc=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
 github.com/grpc-ecosystem/go-grpc-middleware v1.0.0/go.mod h1:FiyG127CGDf3tlThmgyCl78X/SZQqEOJBCDaAfeWzPs=
 github.com/grpc-ecosystem/go-grpc-middleware v1.0.1-0.20190118093823-f849b5445de4/go.mod h1:FiyG127CGDf3tlThmgyCl78X/SZQqEOJBCDaAfeWzPs=
