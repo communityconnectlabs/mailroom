@@ -9,13 +9,15 @@ import (
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/actions"
 	"github.com/nyaruka/mailroom/core/handlers"
+	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 )
 
 func TestMsgReceived(t *testing.T) {
-	testsuite.Reset()
-	db := testsuite.DB()
+	ctx, rt, db, _ := testsuite.Get()
+
+	defer testsuite.Reset(testsuite.ResetAll)
 
 	now := time.Now()
 
@@ -30,7 +32,7 @@ func TestMsgReceived(t *testing.T) {
 				},
 			},
 			Msgs: handlers.ContactMsgMap{
-				testdata.Cathy: testdata.InsertIncomingMsg(db, testdata.Org1, testdata.Cathy.ID, testdata.Cathy.URN, testdata.Cathy.URNID, "start"),
+				testdata.Cathy: testdata.InsertIncomingMsg(db, testdata.Org1, testdata.TwilioChannel, testdata.Cathy, "start", models.MsgStatusHandled),
 			},
 			SQLAssertions: []handlers.SQLAssertion{
 				{
@@ -65,5 +67,5 @@ func TestMsgReceived(t *testing.T) {
 		},
 	}
 
-	handlers.RunTestCases(t, tcs)
+	handlers.RunTestCases(t, ctx, rt, tcs)
 }

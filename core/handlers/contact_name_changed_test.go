@@ -6,10 +6,15 @@ import (
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/actions"
 	"github.com/nyaruka/mailroom/core/handlers"
+	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 )
 
 func TestContactNameChanged(t *testing.T) {
+	ctx, rt, _, _ := testsuite.Get()
+
+	defer testsuite.Reset(testsuite.ResetAll)
+
 	tcs := []handlers.TestCase{
 		{
 			Actions: handlers.ContactActionMap{
@@ -56,5 +61,5 @@ func TestContactNameChanged(t *testing.T) {
 		},
 	}
 
-	handlers.RunTestCases(t, tcs)
+	handlers.RunTestCases(t, ctx, rt, tcs)
 }

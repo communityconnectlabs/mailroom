@@ -17,9 +17,7 @@ import (
 )
 
 func TestOrgs(t *testing.T) {
-	ctx := testsuite.CTX()
-	rt := testsuite.RT()
-	db := testsuite.DB()
+	ctx, rt, db, _ := testsuite.Get()
 
 	tz, _ := time.LoadLocation("America/Los_Angeles")
 
@@ -60,12 +58,9 @@ func TestOrgs(t *testing.T) {
 }
 
 func TestStoreAttachment(t *testing.T) {
-	ctx := testsuite.CTX()
-	rt := testsuite.RT()
-	db := testsuite.DB()
+	ctx, rt, db, _ := testsuite.Get()
 
-	store := testsuite.MediaStorage()
-	defer testsuite.ResetStorage()
+	defer testsuite.Reset(testsuite.ResetStorage)
 
 	image, err := os.Open("testdata/test.jpg")
 	require.NoError(t, err)
@@ -73,12 +68,12 @@ func TestStoreAttachment(t *testing.T) {
 	org, err := models.LoadOrg(ctx, rt.Config, db, testdata.Org1.ID)
 	assert.NoError(t, err)
 
-	attachment, err := org.StoreAttachment(context.Background(), store, "668383ba-387c-49bc-b164-1213ac0ea7aa.jpg", "image/jpeg", image)
+	attachment, err := org.StoreAttachment(context.Background(), rt, "668383ba-387c-49bc-b164-1213ac0ea7aa.jpg", "image/jpeg", image)
 	require.NoError(t, err)
 
 	assert.Equal(t, utils.Attachment("image/jpeg:_test_media_storage/media/1/6683/83ba/668383ba-387c-49bc-b164-1213ac0ea7aa.jpg"), attachment)
 
 	// err trying to read from same reader again
-	_, err = org.StoreAttachment(context.Background(), store, "668383ba-387c-49bc-b164-1213ac0ea7aa.jpg", "image/jpeg", image)
+	_, err = org.StoreAttachment(context.Background(), rt, "668383ba-387c-49bc-b164-1213ac0ea7aa.jpg", "image/jpeg", image)
 	assert.EqualError(t, err, "unable to read attachment content: read testdata/test.jpg: file already closed")
 }

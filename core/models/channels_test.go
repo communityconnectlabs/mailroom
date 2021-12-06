@@ -13,8 +13,9 @@ import (
 )
 
 func TestChannels(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, rt, db, _ := testsuite.Get()
+
+	defer testsuite.Reset(testsuite.ResetAll)
 
 	// add some tel specific config to channel 2
 	db.MustExec(`UPDATE channels_channel SET config = '{"matching_prefixes": ["250", "251"], "allow_international": true}' WHERE id = $1`, testdata.VonageChannel.ID)
@@ -22,7 +23,7 @@ func TestChannels(t *testing.T) {
 	// make twitter channel have a parent of twilio channel
 	db.MustExec(`UPDATE channels_channel SET parent_id = $1 WHERE id = $2`, testdata.TwilioChannel.ID, testdata.TwitterChannel.ID)
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, 1, models.RefreshChannels)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, 1, models.RefreshChannels)
 	require.NoError(t, err)
 
 	channels, err := oa.Channels()

@@ -13,16 +13,15 @@ import (
 )
 
 func TestInterrupts(t *testing.T) {
-	testsuite.Reset()
-	ctx := testsuite.CTX()
-	rt := testsuite.RT()
-	db := rt.DB
+	ctx, rt, db, _ := testsuite.Get()
+
+	defer testsuite.Reset(testsuite.ResetAll)
 
 	insertConnection := func(orgID models.OrgID, channelID models.ChannelID, contactID models.ContactID, urnID models.URNID) models.ConnectionID {
 		var connectionID models.ConnectionID
 		err := db.Get(&connectionID,
-			`INSERT INTO channels_channelconnection(created_on, modified_on, external_id, status, direction, connection_type, retry_count, error_count, org_id, channel_id, contact_id, contact_urn_id) 
- 						VALUES(NOW(), NOW(), 'ext1', 'I', 'I', 'V', 0, 0, $1, $2, $3, $4) RETURNING id`,
+			`INSERT INTO channels_channelconnection(created_on, modified_on, external_id, status, direction, connection_type, error_count, org_id, channel_id, contact_id, contact_urn_id) 
+ 						VALUES(NOW(), NOW(), 'ext1', 'I', 'I', 'V', 0, $1, $2, $3, $4) RETURNING id`,
 			orgID, channelID, contactID, urnID,
 		)
 		assert.NoError(t, err)
@@ -114,12 +113,8 @@ func TestInterrupts(t *testing.T) {
 			assert.Equal(t, tc.StatusesAfter[j], status, "%d: status mismatch for session #%d", i, j)
 
 			// check for runs with a different status to the session
-			testsuite.AssertQueryCount(
-				t, db,
-				`SELECT count(*) FROM flows_flowrun WHERE session_id = $1 AND status != $2`,
-				[]interface{}{sID, tc.StatusesAfter[j]}, 0,
-				"%d: unexpected un-interrupted runs for session #%d", i, j,
-			)
+			testsuite.AssertQuery(t, db, `SELECT count(*) FROM flows_flowrun WHERE session_id = $1 AND status != $2`, sID, tc.StatusesAfter[j]).
+				Returns(0, "%d: unexpected un-interrupted runs for session #%d", i, j)
 		}
 	}
 }

@@ -11,9 +11,11 @@ import (
 )
 
 func TestCron(t *testing.T) {
-	testsuite.ResetRP()
-	rp := testsuite.RP()
-	rc := testsuite.RC()
+	_, _, _, rp := testsuite.Get()
+
+	defer testsuite.Reset(testsuite.ResetRedis)
+
+	rc := rp.Get()
 	defer rc.Close()
 
 	mutex := sync.RWMutex{}
@@ -21,7 +23,7 @@ func TestCron(t *testing.T) {
 	quit := make(chan bool)
 
 	// our cron worker is just going to increment an int on every fire
-	increment := func(lockName string, lockValue string) error {
+	increment := func() error {
 		mutex.Lock()
 		fired++
 		mutex.Unlock()

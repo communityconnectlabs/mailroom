@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -20,7 +20,7 @@ import (
 	"github.com/nyaruka/gocommon/jsonx"
 	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/goflow/test"
-	"github.com/nyaruka/mailroom/config"
+	"github.com/nyaruka/mailroom/runtime"
 	"github.com/nyaruka/mailroom/testsuite"
 
 	"github.com/stretchr/testify/assert"
@@ -28,9 +28,7 @@ import (
 )
 
 // RunWebTests runs the tests in the passed in filename, optionally updating them if the update flag is set
-func RunWebTests(t *testing.T, truthFile string, substitutions map[string]string) {
-	rp := testsuite.RP()
-	db := testsuite.DB()
+func RunWebTests(t *testing.T, ctx context.Context, rt *runtime.Runtime, truthFile string, substitutions map[string]string) {
 	wg := &sync.WaitGroup{}
 
 	defer uuids.SetGenerator(uuids.DefaultGenerator)
@@ -38,9 +36,7 @@ func RunWebTests(t *testing.T, truthFile string, substitutions map[string]string
 
 	defer dates.SetNowSource(dates.DefaultNowSource)
 
-	defer testsuite.ResetStorage()
-
-	server := NewServer(context.Background(), config.Mailroom, db, rp, testsuite.MediaStorage(), nil, wg)
+	server := NewServer(ctx, rt, wg)
 	server.Start()
 	defer server.Stop()
 
@@ -65,16 +61,15 @@ func RunWebTests(t *testing.T, truthFile string, substitutions map[string]string
 
 		actualResponse []byte
 	}
-	tcs := make([]*TestCase, 0, 20)
-	tcJSON, err := ioutil.ReadFile(truthFile)
-	require.NoError(t, err)
+	tcs := make([]TestCase, 0, 20)
+	tcJSON := testsuite.ReadFile(truthFile)
 
 	for key, value := range substitutions {
 		tcJSON = bytes.ReplaceAll(tcJSON, []byte("$"+key+"$"), []byte(value))
 	}
 
-	err = json.Unmarshal(tcJSON, &tcs)
-	require.NoError(t, err)
+	jsonx.MustUnmarshal(tcJSON, &tcs)
+	var err error
 
 	for i, tc := range tcs {
 		dates.SetNowSource(dates.NewSequentialNowSource(time.Date(2018, 7, 6, 12, 30, 0, 123456789, time.UTC)))
@@ -91,14 +86,13 @@ func RunWebTests(t *testing.T, truthFile string, substitutions map[string]string
 		var req *http.Request
 		if tc.BodyEncode == "multipart" {
 			var parts []MultiPartPart
-			err = json.Unmarshal(tc.Body, &parts)
-			require.NoError(t, err)
+			jsonx.MustUnmarshal(tc.Body, &parts)
 
 			req, err = MakeMultipartRequest(tc.Method, testURL, parts, tc.Headers)
 
 		} else if len(tc.Body) >= 2 && tc.Body[0] == '"' { // if body is a string, treat it as a URL encoded submission
 			bodyStr := ""
-			json.Unmarshal(tc.Body, &bodyStr)
+			jsonx.MustUnmarshal(tc.Body, &bodyStr)
 			bodyReader := strings.NewReader(bodyStr)
 			req, err = httpx.NewRequest(tc.Method, testURL, bodyReader, tc.Headers)
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -126,7 +120,7 @@ func RunWebTests(t *testing.T, truthFile string, substitutions map[string]string
 		actual.HTTPMocks = clonedMocks
 
 		tc.HTTPMocks = clonedMocks
-		tc.actualResponse, err = ioutil.ReadAll(resp.Body)
+		tc.actualResponse, err = io.ReadAll(resp.Body)
 		assert.NoError(t, err, "%s: error reading body", tc.Label)
 
 		if !test.UpdateSnapshots {
@@ -136,8 +130,7 @@ func RunWebTests(t *testing.T, truthFile string, substitutions map[string]string
 			expectedIsJSON := false
 
 			if tc.ResponseFile != "" {
-				expectedResponse, err = ioutil.ReadFile(tc.ResponseFile)
-				require.NoError(t, err)
+				expectedResponse = testsuite.ReadFile(tc.ResponseFile)
 
 				expectedIsJSON = strings.HasSuffix(tc.ResponseFile, ".json")
 			} else {
@@ -152,7 +145,7 @@ func RunWebTests(t *testing.T, truthFile string, substitutions map[string]string
 			}
 
 			for _, dba := range tc.DBAssertions {
-				testsuite.AssertQueryCount(t, db, dba.Query, nil, dba.Count, "%s: '%s' returned wrong count", tc.Label, dba.Query)
+				testsuite.AssertQuery(t, rt.DB, dba.Query).Returns(dba.Count, "%s: '%s' returned wrong count", tc.Label, dba.Query)
 			}
 
 		} else {
@@ -164,7 +157,7 @@ func RunWebTests(t *testing.T, truthFile string, substitutions map[string]string
 	if test.UpdateSnapshots {
 		for _, tc := range tcs {
 			if tc.ResponseFile != "" {
-				err = ioutil.WriteFile(tc.ResponseFile, tc.actualResponse, 0644)
+				err = os.WriteFile(tc.ResponseFile, tc.actualResponse, 0644)
 				require.NoError(t, err, "failed to update response file")
 			} else {
 				tc.Response = tc.actualResponse
@@ -174,7 +167,7 @@ func RunWebTests(t *testing.T, truthFile string, substitutions map[string]string
 		truth, err := jsonx.MarshalPretty(tcs)
 		require.NoError(t, err)
 
-		err = ioutil.WriteFile(truthFile, truth, 0644)
+		err = os.WriteFile(truthFile, truth, 0644)
 		require.NoError(t, err, "failed to update truth file")
 	}
 }

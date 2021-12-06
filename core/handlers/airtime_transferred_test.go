@@ -267,8 +267,9 @@ var transactionRejectedResponse = `{
 }`
 
 func TestAirtimeTransferred(t *testing.T) {
-	testsuite.Reset()
+	ctx, rt, db, _ := testsuite.Get()
 
+	defer testsuite.Reset(testsuite.ResetAll)
 	defer httpx.SetRequestor(httpx.DefaultRequestor)
 
 	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
@@ -288,7 +289,7 @@ func TestAirtimeTransferred(t *testing.T) {
 		},
 	}))
 
-	testsuite.DB().MustExec(`UPDATE orgs_org SET config = '{"dtone_key": "key123", "dtone_secret": "sesame"}'::jsonb WHERE id = $1`, testdata.Org1.ID)
+	db.MustExec(`UPDATE orgs_org SET config = '{"dtone_key": "key123", "dtone_secret": "sesame"}'::jsonb WHERE id = $1`, testdata.Org1.ID)
 
 	tcs := []handlers.TestCase{
 		{
@@ -331,5 +332,5 @@ func TestAirtimeTransferred(t *testing.T) {
 		},
 	}
 
-	handlers.RunTestCases(t, tcs)
+	handlers.RunTestCases(t, ctx, rt, tcs)
 }

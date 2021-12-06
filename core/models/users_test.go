@@ -11,10 +11,9 @@ import (
 )
 
 func TestLoadUsers(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, rt, _, _ := testsuite.Get()
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshUsers)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, testdata.Org1.ID, models.RefreshUsers)
 	require.NoError(t, err)
 
 	users, err := oa.Users()
@@ -44,5 +43,8 @@ func TestLoadUsers(t *testing.T) {
 		assert.Equal(t, expected.id, modelUser.ID())
 		assert.Equal(t, expected.email, modelUser.Email())
 		assert.Equal(t, expected.role, modelUser.Role())
+
+		assert.Equal(t, modelUser, oa.UserByID(expected.id))
+		assert.Equal(t, modelUser, oa.UserByEmail(expected.email))
 	}
 }

@@ -12,10 +12,9 @@ import (
 )
 
 func TestFields(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, rt, _, _ := testsuite.Get()
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshFields)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, testdata.Org1.ID, models.RefreshFields)
 	require.NoError(t, err)
 
 	expectedFields := []struct {

@@ -16,31 +16,34 @@ import (
 )
 
 func TestHTTPLogs(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, _, db, _ := testsuite.Get()
 
-	// insert a log
-	log := models.NewClassifierCalledLog(testdata.Org1.ID, testdata.Wit.ID, "http://foo.bar", "GET /", "STATUS 200", false, time.Second, time.Now())
+	defer func() { db.MustExec(`DELETE FROM request_logs_httplog`) }()
+
+	// insert a classifier log
+	log := models.NewClassifierCalledLog(testdata.Org1.ID, testdata.Wit.ID, "http://foo.bar", 200, "GET /", "STATUS 200", false, time.Second, 0, time.Now())
 	err := models.InsertHTTPLogs(ctx, db, []*models.HTTPLog{log})
 	assert.Nil(t, err)
 
-	testsuite.AssertQueryCount(t, db,
-		`SELECT count(*) from request_logs_httplog WHERE org_id = $1 AND classifier_id = $2 AND is_error = FALSE`,
-		[]interface{}{testdata.Org1.ID, testdata.Wit.ID}, 1)
+	testsuite.AssertQuery(t, db, `SELECT count(*) from request_logs_httplog WHERE org_id = $1 AND status_code = 200 AND classifier_id = $2 AND is_error = FALSE`, testdata.Org1.ID, testdata.Wit.ID).Returns(1)
 
 	// insert a log with nil response
-	log = models.NewClassifierCalledLog(testdata.Org1.ID, testdata.Wit.ID, "http://foo.bar", "GET /", "", true, time.Second, time.Now())
+	log = models.NewClassifierCalledLog(testdata.Org1.ID, testdata.Wit.ID, "http://foo.bar", 0, "GET /", "", true, time.Second, 0, time.Now())
 	err = models.InsertHTTPLogs(ctx, db, []*models.HTTPLog{log})
 	assert.Nil(t, err)
 
-	testsuite.AssertQueryCount(t, db,
-		`SELECT count(*) from request_logs_httplog WHERE org_id = $1 AND classifier_id = $2 AND is_error = TRUE AND response IS NULL`,
-		[]interface{}{testdata.Org1.ID, testdata.Wit.ID}, 1)
+	testsuite.AssertQuery(t, db, `SELECT count(*) from request_logs_httplog WHERE org_id = $1 AND status_code = 0 AND classifier_id = $2 AND is_error = TRUE AND response IS NULL`, testdata.Org1.ID, testdata.Wit.ID).Returns(1)
+
+	// insert a webhook log
+	log = models.NewWebhookCalledLog(testdata.Org1.ID, testdata.Favorites.ID, "http://foo.bar", 400, "GET /", "HTTP 200", false, time.Second, 2, time.Now())
+	err = models.InsertHTTPLogs(ctx, db, []*models.HTTPLog{log})
+	assert.Nil(t, err)
+
+	testsuite.AssertQuery(t, db, `SELECT count(*) from request_logs_httplog WHERE org_id = $1 AND status_code = 400 AND flow_id = $2 AND num_retries = 2`, testdata.Org1.ID, testdata.Favorites.ID).Returns(1)
 }
 
 func TestHTTPLogger(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, _, db, _ := testsuite.Get()
 
 	defer httpx.SetRequestor(httpx.DefaultRequestor)
 	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
@@ -72,7 +75,5 @@ func TestHTTPLogger(t *testing.T) {
 	err = logger.Insert(ctx, db)
 	assert.NoError(t, err)
 
-	testsuite.AssertQueryCount(t, db,
-		`SELECT count(*) from request_logs_httplog WHERE org_id = $1 AND ticketer_id = $2`,
-		[]interface{}{testdata.Org1.ID, testdata.Mailgun.ID}, 2)
+	testsuite.AssertQuery(t, db, `SELECT count(*) from request_logs_httplog WHERE org_id = $1 AND ticketer_id = $2`, testdata.Org1.ID, testdata.Mailgun.ID).Returns(2)
 }

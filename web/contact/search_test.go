@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/nyaruka/goflow/test"
-	"github.com/nyaruka/mailroom/config"
 	_ "github.com/nyaruka/mailroom/core/handlers"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
@@ -24,10 +22,8 @@ import (
 )
 
 func TestSearch(t *testing.T) {
-	testsuite.Reset()
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
-	rp := testsuite.RP()
+	ctx, rt, _, _ := testsuite.Get()
+
 	wg := &sync.WaitGroup{}
 
 	es := testsuite.NewMockElasticServer()
@@ -40,7 +36,9 @@ func TestSearch(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	server := web.NewServer(ctx, config.Mailroom, db, rp, nil, client, wg)
+	rt.ES = client
+
+	server := web.NewServer(ctx, rt, wg)
 	server.Start()
 
 	// give our server time to start
@@ -215,7 +213,7 @@ func TestSearch(t *testing.T) {
 
 		assert.Equal(t, tc.ExpectedStatus, resp.StatusCode, "%d: unexpected status", i)
 
-		content, err := ioutil.ReadAll(resp.Body)
+		content, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err, "%d: error reading body", i)
 
 		// on 200 responses parse them
@@ -239,8 +237,10 @@ func TestSearch(t *testing.T) {
 	}
 }
 
-func TestParse(t *testing.T) {
-	testsuite.Reset()
+func TestParseQuery(t *testing.T) {
+	ctx, rt, _, _ := testsuite.Get()
 
-	web.RunWebTests(t, "testdata/parse_query.json", nil)
+	defer testsuite.Reset(testsuite.ResetAll)
+
+	web.RunWebTests(t, ctx, rt, "testdata/parse_query.json", nil)
 }

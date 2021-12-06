@@ -1,3 +1,316 @@
+v7.1.13
+----------
+ * Replace trackers with series to determine unhealthy webhooks
+ * Correct use of KEYS vs ARGV in redisx scripts
+ * Rework how we create outgoing messages, and fix retries of high priority messages
+
+v7.1.12
+----------
+ * Move msg level loop detection from courier
+
+v7.1.11
+----------
+ * Add imports for missing task packages
+
+v7.1.10
+----------
+ * Add redisx.Cacher util
+
+v7.1.9
+----------
+ * Don't include response_to_id in courier payloads
+ * Add logging for ending webhook incidents
+
+v7.1.8
+----------
+ * Update sessions and runs in batches when exiting
+
+v7.1.7
+----------
+ * Fix handling of add label actions after msg resumes in IVR flows
+ * Add cron job to end webhook incidents when nodes are no longer unhealthy
+ * Re-add new locker code but this time don't let locking code hold redis connections for any length of time
+ * Create incident once org has had unhealthy webhooks for 20 minutes
+
+v7.1.6
+----------
+ * Revert "Rework locker code for reusablity"
+
+v7.1.5
+----------
+ * Pin to go 1.17.2
+
+v7.1.4
+----------
+ * Rework redis marker and locker code for reusablity
+ * Test with Redis 3.2.4
+ * Add util class to track the state of something in redis over a recent time period
+ * Remove unneeded check for RP's celery task to retry messages
+
+v7.1.3
+----------
+ * Add logging to msg retry task
+
+v7.1.2
+----------
+ * Add task to retry errored messages
+
+v7.1.1
+----------
+ * Remove notification.channel_id
+
+v7.1.0
+----------
+ * Update to latest goflow with expression changes
+ * Make LUA script to queue messages to courier easier to understand
+ * Explicitly exclude msg fields from marshalling that courier doesn't use
+ * Remove unused code for looking up msgs by UUID
+
+v7.0.1
+----------
+ * Update to latest goflow
+
+v7.0.0
+----------
+ * Tweak README
+
+v6.5.43
+----------
+ * Update to latest goflow which adds reverse function
+
+v6.5.42
+----------
+ * Change default resumes per session limit from 500 to 250
+ * Update to latest goflow
+
+v6.5.41
+----------
+ * Update to latest goflow which adds sort function
+
+v6.5.40
+----------
+ * Add config option for maximum resumes per session
+
+v6.5.39
+----------
+ * Add notification.email_status
+
+v6.5.38
+----------
+ * Update to latest goflow which simplifies contactql queries after parsing
+ * Load contacts for flow starts from readonly database
+ * CI testing on PG12 and 13
+
+v6.5.37
+----------
+ * Look for From param if Caller param not found in incoming IVR call request
+ * Update to latest gocommon and go 1.17
+
+v6.5.36
+----------
+ * Drop ticket.subject
+ * Remove no longer used FlowStart.CreatedBy
+
+v6.5.35
+----------
+ * Tweak mailroom startup to show warning if no distinct readonly DB configured
+
+v6.5.34
+----------
+ * Switch to readonly database for asset loading
+
+v6.5.33
+----------
+ * Add support for READONLY_DB config setting that opens a new readonly database connection
+ * Finish the runtime.Runtime refactor
+
+v6.5.32
+----------
+ * Refactor more code to use runtime.Runtime instead of passing db instances and using the global config
+ * Update to latest goflow with doc fixes
+
+v6.5.31
+----------
+ * Recalculate dynamic groups after closing and reopening tickets
+ * Stop writing webhook results
+
+v6.5.30
+----------
+ * Fix handling webhook called events on resumes
+
+v6.5.29
+----------
+ * Add new fields to HTTPLog and save for webhook called events
+ * Stop writing ticket subjects
+
+v6.5.28
+----------
+ * Add warning log entry when task takes longer than 1 minute
+
+v6.5.27
+----------
+ * Update to latest goflow (fixes word_slice)
+
+v6.5.26
+----------
+ * Update to latest goflow
+
+v6.5.25
+----------
+ * Add notifications for contact imports and set contact import status
+
+v6.5.24
+----------
+ * Fix IVR for orgs using S3 sessions
+ * Ticket notifications (opened and activity)
+
+v6.5.23
+----------
+ * Add force param to close tickets endpoint to let us ignore errors on external ticket service when removing a ticketer
+
+v6.5.22
+----------
+ * Support Spanish status names passed back from Zendesk targets
+
+v6.5.21
+----------
+ * Read sessions from db or s3 depending on whether output_url is set
+ * Don't write output in db when writing to s3
+
+v6.5.20
+----------
+ * Add endpoint to change ticket topic
+ * Update to latest goflow/gocommon/phonenumbers
+
+v6.5.19
+----------
+ * Update to latest goflow to get ticket topic changes there
+ * Add ticket topics
+
+v6.5.18
+----------
+ * Switch to synchronous answering machine detection for Twilio channels
+
+v6.5.15
+----------
+ * Make IVR machine detection an option in channel config
+
+v6.5.14
+----------
+ * Stop reading/writing channelconnection.retry_count so that it can be dropped
+
+v6.5.13
+----------
+ * Don't let IVR status callbacks overwrite error status (otherwise calls aren't retried)
+
+v6.5.12
+----------
+ * Revert previous to query to fetch calls to retry so we only look as statuses Q and E
+ * Add ChannelConnection.errorReason and start populating
+ * Reinstate channel connection error_count and write it
+ * Fix retrying of calls where answering machine was detected
+
+v6.5.11
+----------
+ * Implement asynchronous AMD for Twilio IVR
+ * Enable answering machine detection for Vonage IVR
+
+v6.5.10
+----------
+ * Fix requests to twilio to start calls with machine detection
+
+v6.5.9
+----------
+ * Add support for answering machine detection on Twilio calls
+ * Update to latest goflow
+
+v6.5.8
+----------
+ * Use new config keys for LUIS classifiers
+
+v6.5.7
+----------
+ * Switch from abandoned dgrijalva/jwt-go to golang-jwt/jwt
+ * Update to latest goflow (adds support for queries on tickets, fixes LUIS classifiers)
+
+v6.5.6
+----------
+ * Update to latest goflow and add parse_only as param to parse_query to allow us to extract field dependencies even when they don't yet exist in the database
+
+v6.5.5
+----------
+ * Fix tests broken by recent db changes to msgs and broadcasts
+ * Populate ticket_count when creating new contacts
+
+v6.5.4
+----------
+ * Actually save IVR messages with sent_on set
+
+v6.5.3
+----------
+ * Update contact modified_on after populate dynamic group task
+ * Update to latest goflow
+
+v6.5.2
+----------
+ * Set sent_on for outgoing IVR messages
+
+v6.5.1
+----------
+ * Support flow config ivr_retry values of -1 meaning no retry
+ * Log error if marking event fire as fired fails
+
+v6.5.0
+----------
+ * Update to latest goflow and gocommon
+
+v6.4.3
+----------
+ * Fix triggering new IVR flow from a simulation resume so that it includes connection to test channel
+
+v6.4.2
+----------
+ * Latest goflow with latest localization
+
+v6.4.1
+----------
+ * Update to latest goflow to get fixes for nulls in webhook responses
+ * Add new error type for failed SQL queries
+
+v6.4.0
+----------
+ * move s3 session config error to a warning for the time being since not strictly required yet
+
+v6.3.31
+----------
+ * Support ticket open events with assignees
+ * Add endpoints for ticket assignment and adding notes
+
+v6.3.30
+----------
+ * Update to latest goflow
+
+v6.3.29
+----------
+ * Include args in BulkQuery error output
+
+v6.3.28
+----------
+ * Return more SQL when BulkQuery errors
+ * Update to latest goflow/gocommon
+
+v6.3.27
+----------
+ * Fix handling of inbox messages to also update open tickets
+
+v6.3.26
+----------
+ * Stop writing broadcast.is_active which is now nullable
+
+v6.3.25
+----------
+ * Update to latest goflow
+
 v6.3.24
 ----------
  * Update to latest goflow

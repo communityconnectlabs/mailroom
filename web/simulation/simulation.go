@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/goflow/assets"
-	"github.com/nyaruka/goflow/assets/static/types"
+	"github.com/nyaruka/goflow/assets/static"
 	"github.com/nyaruka/goflow/excellent/tools"
 	xtypes "github.com/nyaruka/goflow/excellent/types"
 	"github.com/nyaruka/goflow/flows"
@@ -20,6 +21,9 @@ import (
 	"github.com/nyaruka/mailroom/web"
 	"github.com/pkg/errors"
 )
+
+var testChannel = assets.NewChannelReference("440099cf-200c-4d45-a8e7-4a564f4a0e8b", "Test Channel")
+var testURN = urns.URN("tel:+12065551212")
 
 func init() {
 	web.RegisterJSONRoute(http.MethodPost, "/mr/sim/start", web.RequireAuthToken(handleStart))
@@ -35,7 +39,7 @@ type sessionRequest struct {
 	OrgID  models.OrgID     `json:"org_id"  validate:"required"`
 	Flows  []flowDefinition `json:"flows"`
 	Assets struct {
-		Channels []*types.Channel `json:"channels"`
+		Channels []*static.Channel `json:"channels"`
 	} `json:"assets"`
 }
 
@@ -121,13 +125,13 @@ func handleStart(ctx context.Context, rt *runtime.Runtime, r *http.Request) (int
 	}
 
 	// grab our org assets
-	oa, err := models.GetOrgAssets(ctx, rt.DB, request.OrgID)
+	oa, err := models.GetOrgAssets(ctx, rt, request.OrgID)
 	if err != nil {
 		return nil, http.StatusBadRequest, errors.Wrapf(err, "unable to load org assets")
 	}
 
 	// create clone of assets for simulation
-	oa, err = oa.CloneForSimulation(ctx, rt.DB, request.flows(), request.channels())
+	oa, err = oa.CloneForSimulation(ctx, rt, request.flows(), request.channels())
 	if err != nil {
 		return nil, http.StatusBadRequest, errors.Wrapf(err, "unable to clone org")
 	}
@@ -184,13 +188,13 @@ func handleResume(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 	}
 
 	// grab our org assets
-	oa, err := models.GetOrgAssets(ctx, rt.DB, request.OrgID)
+	oa, err := models.GetOrgAssets(ctx, rt, request.OrgID)
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
 
 	// create clone of assets for simulation
-	oa, err = oa.CloneForSimulation(ctx, rt.DB, request.flows(), request.channels())
+	oa, err = oa.CloneForSimulation(ctx, rt, request.flows(), request.channels())
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
@@ -230,8 +234,18 @@ func handleResume(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 				}
 
 				if triggeredFlow != nil {
-					trigger := triggers.NewBuilder(oa.Env(), triggeredFlow.FlowReference(), resume.Contact()).Msg(msgResume.Msg()).WithMatch(trigger.Match()).Build()
-					return triggerFlow(ctx, rt, oa, trigger)
+					tb := triggers.NewBuilder(oa.Env(), triggeredFlow.FlowReference(), resume.Contact())
+
+					var sessionTrigger flows.Trigger
+					if triggeredFlow.FlowType() == models.FlowTypeVoice {
+						// TODO this should trigger a msg trigger with a connection but first we need to rework
+						// non-simulation IVR triggers to use that so that this is consistent.
+						sessionTrigger = tb.Manual().WithConnection(testChannel, testURN).Build()
+					} else {
+						sessionTrigger = tb.Msg(msgResume.Msg()).WithMatch(trigger.Match()).Build()
+					}
+
+					return triggerFlow(ctx, rt, oa, sessionTrigger)
 				}
 			}
 		}

@@ -53,6 +53,7 @@ var flowTypeMapping = map[flows.FlowType]FlowType{
 type Flow struct {
 	f struct {
 		ID             FlowID          `json:"id"`
+		OrgID          OrgID           `json:"org_id"`
 		UUID           assets.FlowUUID `json:"uuid"`
 		Name           string          `json:"name"`
 		Config         null.Map        `json:"config"`
@@ -65,6 +66,9 @@ type Flow struct {
 
 // ID returns the ID for this flow
 func (f *Flow) ID() FlowID { return f.f.ID }
+
+// OrgID returns the Org ID for this flow
+func (f *Flow) OrgID() OrgID { return f.f.OrgID }
 
 // UUID returns the UUID for this flow
 func (f *Flow) UUID() assets.FlowUUID { return f.f.UUID }
@@ -81,14 +85,22 @@ func (f *Flow) FlowType() FlowType { return f.f.FlowType }
 // Version returns the version this flow was authored in
 func (f *Flow) Version() string { return f.f.Version }
 
-// IVRRetryWait returns the wait before retrying a failed IVR call
-func (f *Flow) IVRRetryWait() time.Duration {
+// IVRRetryWait returns the wait before retrying a failed IVR call (nil means no retry)
+func (f *Flow) IVRRetryWait() *time.Duration {
+	wait := ConnectionRetryWait
+
 	value := f.f.Config.Get(flowConfigIVRRetryMinutes, nil)
 	fv, isFloat := value.(float64)
 	if isFloat {
-		return time.Minute * time.Duration(int(fv))
+		minutes := int(fv)
+		if minutes >= 0 {
+			wait = time.Minute * time.Duration(minutes)
+		} else {
+			return nil // ivr_retry -1 means no retry
+		}
 	}
-	return ConnectionRetryWait
+
+	return &wait
 }
 
 // IgnoreTriggers returns whether this flow ignores triggers
@@ -156,6 +168,7 @@ func loadFlow(ctx context.Context, db Queryer, sql string, orgID OrgID, arg inte
 const selectFlowByUUIDSQL = `
 SELECT ROW_TO_JSON(r) FROM (SELECT
 	id, 
+	org_id,
 	uuid, 
 	name,
 	ignore_triggers,
@@ -203,6 +216,7 @@ WHERE
 const selectFlowByIDSQL = `
 SELECT ROW_TO_JSON(r) FROM (SELECT
 	id, 
+	org_id,
 	uuid, 
 	name,
 	ignore_triggers,

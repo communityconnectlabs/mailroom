@@ -18,8 +18,7 @@ import (
 )
 
 func TestStarts(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, _, db, _ := testsuite.Get()
 
 	startID := testdata.InsertFlowStart(db, testdata.Org1, testdata.SingleMessage, []*testdata.Contact{testdata.Cathy, testdata.Bob})
 
@@ -65,8 +64,8 @@ func TestStarts(t *testing.T) {
 	err = models.MarkStartStarted(ctx, db, startID, 2, []models.ContactID{testdata.George.ID})
 	require.NoError(t, err)
 
-	testsuite.AssertQueryCount(t, db, `SELECT count(*) FROM flows_flowstart WHERE id = $1 AND status = 'S' AND contact_count = 2`, []interface{}{startID}, 1)
-	testsuite.AssertQueryCount(t, db, `SELECT count(*) FROM flows_flowstart_contacts WHERE flowstart_id = $1`, []interface{}{startID}, 3)
+	testsuite.AssertQuery(t, db, `SELECT count(*) FROM flows_flowstart WHERE id = $1 AND status = 'S' AND contact_count = 2`, startID).Returns(1)
+	testsuite.AssertQuery(t, db, `SELECT count(*) FROM flows_flowstart_contacts WHERE flowstart_id = $1`, startID).Returns(3)
 
 	batch := start.CreateBatch([]models.ContactID{testdata.Cathy.ID, testdata.Bob.ID}, false, 3)
 	assert.Equal(t, startID, batch.StartID())
@@ -93,7 +92,7 @@ func TestStarts(t *testing.T) {
 	err = models.MarkStartComplete(ctx, db, startID)
 	require.NoError(t, err)
 
-	testsuite.AssertQueryCount(t, db, `SELECT count(*) FROM flows_flowstart WHERE id = $1 AND status = 'C'`, []interface{}{startID}, 1)
+	testsuite.AssertQuery(t, db, `SELECT count(*) FROM flows_flowstart WHERE id = $1 AND status = 'C'`, startID).Returns(1)
 }
 
 func TestStartsBuilding(t *testing.T) {
@@ -114,7 +113,6 @@ func TestStartsBuilding(t *testing.T) {
 		"UUID": "1ae96956-4b34-433e-8d1a-f05fe6923d6d",
 		"contact_ids": [%d, %d],
 		"create_contact": true,
-		"created_by": "",
 		"created_by_id": null,
 		"exclude_group_ids": [%d],
 		"flow_id": %d,

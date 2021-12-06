@@ -19,12 +19,11 @@ import (
 )
 
 func TestSessionTriggered(t *testing.T) {
-	testsuite.Reset()
-	models.FlushCache()
-	rt := testsuite.RT()
-	ctx := testsuite.CTX()
+	ctx, rt, _, _ := testsuite.Get()
 
-	oa, err := models.GetOrgAssets(ctx, rt.DB, testdata.Org1.ID)
+	defer testsuite.Reset(testsuite.ResetAll)
+
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
 	assert.NoError(t, err)
 
 	simpleFlow, err := oa.FlowByID(testdata.SingleMessage.ID)
@@ -92,16 +91,15 @@ func TestSessionTriggered(t *testing.T) {
 		},
 	}
 
-	handlers.RunTestCases(t, tcs)
+	handlers.RunTestCases(t, ctx, rt, tcs)
 }
 
 func TestQuerySessionTriggered(t *testing.T) {
-	testsuite.Reset()
-	models.FlushCache()
-	db := testsuite.DB()
-	ctx := testsuite.CTX()
+	ctx, rt, _, rp := testsuite.Get()
 
-	oa, err := models.GetOrgAssets(ctx, db, testdata.Org1.ID)
+	defer testsuite.Reset(testsuite.ResetAll)
+
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
 	assert.NoError(t, err)
 
 	favoriteFlow, err := oa.FlowByID(testdata.Favorites.ID)
@@ -124,7 +122,7 @@ func TestQuerySessionTriggered(t *testing.T) {
 			},
 			Assertions: []handlers.Assertion{
 				func(t *testing.T, rt *runtime.Runtime) error {
-					rc := rt.RP.Get()
+					rc := rp.Get()
 					defer rc.Close()
 
 					task, err := queue.PopNextTask(rc, queue.BatchQueue)
@@ -144,5 +142,5 @@ func TestQuerySessionTriggered(t *testing.T) {
 		},
 	}
 
-	handlers.RunTestCases(t, tcs)
+	handlers.RunTestCases(t, ctx, rt, tcs)
 }

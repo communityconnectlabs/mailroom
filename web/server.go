@@ -3,22 +3,16 @@ package web
 import (
 	"compress/flate"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/nyaruka/gocommon/jsonx"
-	"github.com/nyaruka/gocommon/storage"
-	"github.com/nyaruka/mailroom/config"
 	"github.com/nyaruka/mailroom/runtime"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/gomodule/redigo/redis"
-	"github.com/jmoiron/sqlx"
-	"github.com/olivere/elastic/v7"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -62,19 +56,8 @@ func RegisterRoute(method string, pattern string, handler Handler) {
 }
 
 // NewServer creates a new web server, it will need to be started after being created
-func NewServer(ctx context.Context, config *config.Config, db *sqlx.DB, rp *redis.Pool, store storage.Storage, es *elastic.Client, wg *sync.WaitGroup) *Server {
-	s := &Server{
-		ctx: ctx,
-		rt: &runtime.Runtime{
-			RP:           rp,
-			DB:           db,
-			ES:           es,
-			MediaStorage: store,
-			Config:       config,
-		},
-
-		wg: wg,
-	}
+func NewServer(ctx context.Context, rt *runtime.Runtime, wg *sync.WaitGroup) *Server {
+	s := &Server{ctx: ctx, rt: rt, wg: wg}
 
 	router := chi.NewRouter()
 
@@ -104,7 +87,7 @@ func NewServer(ctx context.Context, config *config.Config, db *sqlx.DB, rp *redi
 
 	// configure our http server
 	s.httpServer = &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", config.Address, config.Port),
+		Addr:         fmt.Sprintf("%s:%d", rt.Config.Address, rt.Config.Port),
 		Handler:      router,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -161,7 +144,7 @@ func (s *Server) WrapHandler(handler Handler) http.HandlerFunc {
 
 		logrus.WithError(err).WithField("http_request", r).Error("error handling request")
 		w.WriteHeader(http.StatusInternalServerError)
-		serialized, _ := json.Marshal(NewErrorResponse(err))
+		serialized := jsonx.MustMarshal(NewErrorResponse(err))
 		w.Write(serialized)
 	}
 }

@@ -17,7 +17,9 @@ import (
 )
 
 func TestWithHTTPLogs(t *testing.T) {
-	testsuite.ResetDB()
+	ctx, rt, db, _ := testsuite.Get()
+
+	defer db.MustExec(`DELETE FROM request_logs_httplog`)
 
 	defer httpx.SetRequestor(httpx.DefaultRequestor)
 	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
@@ -50,7 +52,7 @@ func TestWithHTTPLogs(t *testing.T) {
 
 	// simulate handler being invoked by server
 	wrapped := web.WithHTTPLogs(handler)
-	response, status, err := wrapped(testsuite.CTX(), testsuite.RT(), nil)
+	response, status, err := wrapped(ctx, rt, nil)
 
 	// check response from handler
 	assert.Equal(t, map[string]string{"status": "OK"}, response)
@@ -58,5 +60,5 @@ func TestWithHTTPLogs(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check HTTP logs were created
-	testsuite.AssertQueryCount(t, testsuite.DB(), `select count(*) from request_logs_httplog where ticketer_id = $1;`, []interface{}{testdata.Mailgun.ID}, 2)
+	testsuite.AssertQuery(t, db, `select count(*) from request_logs_httplog where ticketer_id = $1;`, testdata.Mailgun.ID).Returns(2)
 }

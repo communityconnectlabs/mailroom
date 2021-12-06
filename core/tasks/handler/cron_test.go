@@ -17,17 +17,14 @@ import (
 )
 
 func TestRetryMsgs(t *testing.T) {
-	testsuite.Reset()
-	rt := testsuite.RT()
-	db := rt.DB
-	rp := rt.RP
-	ctx := testsuite.CTX()
-
+	ctx, rt, db, rp := testsuite.Get()
 	rc := rp.Get()
 	defer rc.Close()
 
+	defer testsuite.Reset(testsuite.ResetAll)
+
 	// noop does nothing
-	err := handler.RetryPendingMsgs(ctx, db, rp, "test", "test")
+	err := handler.RetryPendingMsgs(ctx, rt)
 	assert.NoError(t, err)
 
 	testMsgs := []struct {
@@ -47,7 +44,7 @@ func TestRetryMsgs(t *testing.T) {
 			uuids.New(), testdata.Org1.ID, testdata.TwilioChannel.ID, testdata.Cathy.ID, testdata.Cathy.URNID, msg.Text, models.DirectionIn, msg.Status, msg.CreatedOn)
 	}
 
-	err = handler.RetryPendingMsgs(ctx, db, rp, "test", "test")
+	err = handler.RetryPendingMsgs(ctx, rt)
 	assert.NoError(t, err)
 
 	// should have one message requeued
@@ -57,7 +54,7 @@ func TestRetryMsgs(t *testing.T) {
 	assert.NoError(t, err)
 
 	// message should be handled now
-	testsuite.AssertQueryCount(t, db, `SELECT count(*) from msgs_msg WHERE text = 'pending' AND status = 'H'`, []interface{}{}, 1)
+	testsuite.AssertQuery(t, db, `SELECT count(*) from msgs_msg WHERE text = 'pending' AND status = 'H'`).Returns(1)
 
 	// only one message was queued
 	task, _ = queue.PopNextTask(rc, queue.HandlerQueue)

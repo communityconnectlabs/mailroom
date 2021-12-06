@@ -9,8 +9,8 @@ import (
 	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/actions"
-	"github.com/nyaruka/mailroom/config"
 	"github.com/nyaruka/mailroom/core/handlers"
+	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 
@@ -19,24 +19,24 @@ import (
 )
 
 func TestMsgCreated(t *testing.T) {
-	testsuite.Reset()
-	db := testsuite.DB()
+	ctx, rt, db, rp := testsuite.Get()
 
-	config.Mailroom.AttachmentDomain = "foo.bar.com"
-	defer func() { config.Mailroom.AttachmentDomain = "" }()
+	defer testsuite.Reset(testsuite.ResetAll)
+
+	rt.Config.AttachmentDomain = "foo.bar.com"
+	defer func() { rt.Config.AttachmentDomain = "" }()
 
 	// add a URN for cathy so we can test all urn sends
 	testdata.InsertContactURN(db, testdata.Org1, testdata.Cathy, urns.URN("tel:+12065551212"), 10)
 
-	// delete all messages and URNs for bob
-	db.MustExec(`DELETE FROM msgs_msg`)
+	// delete all URNs for bob
 	db.MustExec(`DELETE FROM contacts_contacturn WHERE contact_id = $1`, testdata.Bob.ID)
 
 	// change alexandrias URN to a twitter URN and set her language to eng so that a template gets used for her
 	db.MustExec(`UPDATE contacts_contacturn SET identity = 'twitter:12345', path='12345', scheme='twitter' WHERE contact_id = $1`, testdata.Alexandria.ID)
 	db.MustExec(`UPDATE contacts_contact SET language='eng' WHERE id = $1`, testdata.Alexandria.ID)
 
-	msg1 := testdata.InsertIncomingMsg(db, testdata.Org1, testdata.Cathy.ID, testdata.Cathy.URN, testdata.Cathy.URNID, "start")
+	msg1 := testdata.InsertIncomingMsg(db, testdata.Org1, testdata.TwilioChannel, testdata.Cathy, "start", models.MsgStatusHandled)
 
 	templateAction := actions.NewSendMsg(handlers.NewActionUUID(), "Template time", nil, nil, false)
 	templateAction.Templating = &actions.Templating{
@@ -66,8 +66,8 @@ func TestMsgCreated(t *testing.T) {
 			},
 			SQLAssertions: []handlers.SQLAssertion{
 				{
-					SQL:   "SELECT COUNT(*) FROM msgs_msg WHERE text='Hello World' AND contact_id = $1 AND metadata = $2 AND response_to_id = $3 AND high_priority = TRUE",
-					Args:  []interface{}{testdata.Cathy.ID, `{"quick_replies":["yes","no"]}`, msg1.ID()},
+					SQL:   "SELECT COUNT(*) FROM msgs_msg WHERE text='Hello World' AND contact_id = $1 AND metadata = $2 AND high_priority = TRUE",
+					Args:  []interface{}{testdata.Cathy.ID, `{"quick_replies":["yes","no"]}`},
 					Count: 2,
 				},
 				{
@@ -94,9 +94,9 @@ func TestMsgCreated(t *testing.T) {
 		},
 	}
 
-	handlers.RunTestCases(t, tcs)
+	handlers.RunTestCases(t, ctx, rt, tcs)
 
-	rc := testsuite.RP().Get()
+	rc := rp.Get()
 	defer rc.Close()
 
 	// Cathy should have 1 batch of queued messages at high priority
@@ -111,8 +111,9 @@ func TestMsgCreated(t *testing.T) {
 }
 
 func TestNoTopup(t *testing.T) {
-	testsuite.Reset()
-	db := testsuite.DB()
+	ctx, rt, db, _ := testsuite.Get()
+
+	defer testsuite.Reset(testsuite.ResetAll)
 
 	// no more credits
 	db.MustExec(`UPDATE orgs_topup SET credits = 0 WHERE org_id = $1`, testdata.Org1.ID)
@@ -134,12 +135,13 @@ func TestNoTopup(t *testing.T) {
 		},
 	}
 
-	handlers.RunTestCases(t, tcs)
+	handlers.RunTestCases(t, ctx, rt, tcs)
 }
 
 func TestNewURN(t *testing.T) {
-	testsuite.Reset()
-	db := testsuite.DB()
+	ctx, rt, db, _ := testsuite.Get()
+
+	defer testsuite.Reset(testsuite.ResetAll)
 
 	// switch our twitter channel to telegram
 	telegramUUID := testdata.TwitterChannel.UUID
@@ -208,5 +210,5 @@ func TestNewURN(t *testing.T) {
 		},
 	}
 
-	handlers.RunTestCases(t, tcs)
+	handlers.RunTestCases(t, ctx, rt, tcs)
 }

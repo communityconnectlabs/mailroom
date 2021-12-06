@@ -18,7 +18,10 @@ import (
 )
 
 func TestEngineWebhook(t *testing.T) {
-	rt := testsuite.RT()
+	// this is only here because this is the first test run.. should find a better way to ensure DB is in correct state for first test that needs it
+	testsuite.Reset(testsuite.ResetDB)
+
+	_, rt, _, _ := testsuite.Get()
 
 	svc, err := goflow.Engine(rt.Config).Services().Webhook(nil)
 	assert.NoError(t, err)
@@ -40,7 +43,7 @@ func TestEngineWebhook(t *testing.T) {
 }
 
 func TestSimulatorAirtime(t *testing.T) {
-	rt := testsuite.RT()
+	_, rt, _, _ := testsuite.Get()
 
 	svc, err := goflow.Simulator(rt.Config).Services().Airtime(nil)
 	assert.NoError(t, err)
@@ -60,8 +63,7 @@ func TestSimulatorAirtime(t *testing.T) {
 }
 
 func TestSimulatorTicket(t *testing.T) {
-	ctx, db, _ := testsuite.Reset()
-	rt := testsuite.RT()
+	ctx, rt, db, _ := testsuite.Get()
 
 	ticketer, err := models.LookupTicketerByUUID(ctx, db, testdata.Mailgun.UUID)
 	require.NoError(t, err)
@@ -69,15 +71,17 @@ func TestSimulatorTicket(t *testing.T) {
 	svc, err := goflow.Simulator(rt.Config).Services().Ticket(nil, flows.NewTicketer(ticketer))
 	assert.NoError(t, err)
 
-	ticket, err := svc.Open(nil, "New ticket", "Where are my cookies?", nil)
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
+	require.NoError(t, err)
+
+	ticket, err := svc.Open(nil, oa.SessionAssets().Topics().FindByName("General"), "Where are my cookies?", nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, testdata.Mailgun.UUID, ticket.Ticketer().UUID())
-	assert.Equal(t, "New ticket", ticket.Subject())
 	assert.Equal(t, "Where are my cookies?", ticket.Body())
 }
 
 func TestSimulatorWebhook(t *testing.T) {
-	rt := testsuite.RT()
+	_, rt, _, _ := testsuite.Get()
 
 	svc, err := goflow.Simulator(rt.Config).Services().Webhook(nil)
 	assert.NoError(t, err)

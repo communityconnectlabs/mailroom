@@ -18,8 +18,9 @@ import (
 )
 
 func TestLoadGroups(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.NewMockDB(testsuite.DB(), func(funcName string, call int) error {
+	ctx, _, db0, _ := testsuite.Get()
+
+	db := testsuite.NewMockDB(db0, func(funcName string, call int) error {
 		// fail first query for groups
 		if funcName == "QueryxContext" && call == 0 {
 			return errors.New("boom")
@@ -54,29 +55,30 @@ func TestLoadGroups(t *testing.T) {
 }
 
 func TestDynamicGroups(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, rt, db, _ := testsuite.Get()
+
+	defer testsuite.Reset(testsuite.ResetAll)
 
 	// insert an event on our campaign
 	var eventID models.CampaignEventID
-	testsuite.DB().Get(&eventID,
+	db.Get(&eventID,
 		`INSERT INTO campaigns_campaignevent(is_active, created_on, modified_on, uuid, "offset", unit, event_type, delivery_hour, 
 											 campaign_id, created_by_id, modified_by_id, flow_id, relative_to_id, start_mode)
 									   VALUES(TRUE, NOW(), NOW(), $1, 1000, 'W', 'F', -1, $2, 1, 1, $3, $4, 'I') RETURNING id`,
 		uuids.New(), testdata.RemindersCampaign.ID, testdata.Favorites.ID, testdata.JoinedField.ID)
 
 	// clear Cathy's value
-	testsuite.DB().MustExec(
+	db.MustExec(
 		`update contacts_contact set fields = fields - $2
 		WHERE id = $1`, testdata.Cathy.ID, testdata.JoinedField.UUID)
 
 	// and populate Bob's
-	testsuite.DB().MustExec(
+	db.MustExec(
 		fmt.Sprintf(`update contacts_contact set fields = fields ||
 		'{"%s": { "text": "2029-09-15T12:00:00+00:00", "datetime": "2029-09-15T12:00:00+00:00" }}'::jsonb
 		WHERE id = $1`, testdata.JoinedField.UUID), testdata.Bob.ID)
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshCampaigns|models.RefreshGroups)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, testdata.Org1.ID, models.RefreshCampaigns|models.RefreshGroups)
 	assert.NoError(t, err)
 
 	esServer := testsuite.NewMockElasticServer()
@@ -161,16 +163,13 @@ func TestDynamicGroups(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, tc.ContactIDs, contactIDs)
 
-		testsuite.AssertQueryCount(t, db,
-			`SELECT count(*) from contacts_contactgroup WHERE id = $1 AND status = 'R'`,
-			[]interface{}{testdata.DoctorsGroup.ID}, 1, "wrong number of contacts in group for query: %s", tc.Query)
+		testsuite.AssertQuery(t, db, `SELECT count(*) from contacts_contactgroup WHERE id = $1 AND status = 'R'`, testdata.DoctorsGroup.ID).
+			Returns(1, "wrong number of contacts in group for query: %s", tc.Query)
 
-		testsuite.AssertQueryCount(t, db,
-			`SELECT count(*) from campaigns_eventfire WHERE event_id = $1`,
-			[]interface{}{eventID}, len(tc.EventContactIDs), "wrong number of contacts with events for query: %s", tc.Query)
+		testsuite.AssertQuery(t, db, `SELECT count(*) from campaigns_eventfire WHERE event_id = $1`, eventID).
+			Returns(len(tc.EventContactIDs), "wrong number of contacts with events for query: %s", tc.Query)
 
-		testsuite.AssertQueryCount(t, db,
-			`SELECT count(*) from campaigns_eventfire WHERE event_id = $1 AND contact_id = ANY($2)`,
-			[]interface{}{eventID, pq.Array(tc.EventContactIDs)}, len(tc.EventContactIDs), "wrong contacts with events for query: %s", tc.Query)
+		testsuite.AssertQuery(t, db, `SELECT count(*) from campaigns_eventfire WHERE event_id = $1 AND contact_id = ANY($2)`, eventID, pq.Array(tc.EventContactIDs)).
+			Returns(len(tc.EventContactIDs), "wrong contacts with events for query: %s", tc.Query)
 	}
 }

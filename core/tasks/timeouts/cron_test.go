@@ -11,21 +11,16 @@ import (
 	"github.com/nyaruka/mailroom/core/tasks/handler"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
-	"github.com/nyaruka/mailroom/utils/marker"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTimeouts(t *testing.T) {
-	testsuite.Reset()
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
-	rp := testsuite.RP()
-	rc := testsuite.RC()
+	ctx, rt, db, rp := testsuite.Get()
+	rc := rp.Get()
 	defer rc.Close()
 
-	err := marker.ClearTasks(rc, timeoutLock)
-	assert.NoError(t, err)
+	defer testsuite.Reset(testsuite.ResetData | testsuite.ResetRedis)
 
 	// need to create a session that has an expired timeout
 	s1TimeoutOn := time.Now()
@@ -36,7 +31,7 @@ func TestTimeouts(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// schedule our timeouts
-	err = timeoutSessions(ctx, db, rp, timeoutLock, "foo")
+	err := timeoutSessions(ctx, rt)
 	assert.NoError(t, err)
 
 	// should have created one task

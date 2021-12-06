@@ -12,10 +12,9 @@ import (
 )
 
 func TestLabels(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, rt, _, _ := testsuite.Get()
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshLabels)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, testdata.Org1.ID, models.RefreshLabels)
 	require.NoError(t, err)
 
 	labels, err := oa.Labels()
