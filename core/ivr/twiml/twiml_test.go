@@ -1,16 +1,26 @@
 package twiml
 
 import (
+	"context"
 	"encoding/xml"
+	"fmt"
+	"github.com/jmoiron/sqlx"
+	"github.com/nyaruka/gocommon/httpx"
+	"github.com/nyaruka/mailroom/core/ivr"
+	"github.com/nyaruka/mailroom/core/models"
+	"github.com/nyaruka/mailroom/testsuite"
+	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 
-	"github.com/nyaruka/gocommon/urns"
-	"github.com/nyaruka/gocommon/uuids"
 	"github.com/greatnonprofits-nfp/goflow/assets"
 	"github.com/greatnonprofits-nfp/goflow/flows/events"
 	"github.com/greatnonprofits-nfp/goflow/flows/routers/waits"
 	"github.com/greatnonprofits-nfp/goflow/flows/routers/waits/hints"
 	"github.com/greatnonprofits-nfp/goflow/utils"
+	"github.com/nyaruka/gocommon/urns"
+	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/mailroom/config"
 
 	"github.com/greatnonprofits-nfp/goflow/flows"
@@ -90,4 +100,74 @@ func TestResponseForSprint(t *testing.T) {
 		assert.NoError(t, err, "%d: unexpected error")
 		assert.Equal(t, xml.Header+tc.Expected, response, "%d: unexpected response", i)
 	}
+}
+
+func TestResumeForRequest(t *testing.T) {
+	ctx, db, _ := testsuite.Reset()
+
+	tClient, err := getTestClient(ctx, db, t)
+	assert.NoError(t, err)
+
+	req, err := getTestRequest(`{}`, "")
+	req.Form = url.Values{
+		"wait_type": []string{"dial"},
+		"DialCallStatus": []string{"busy"},
+		"DialCallDuration": []string{"10"},
+	}
+
+	resume, err := tClient.ResumeForRequest(req)
+	assert.NoError(t, err)
+	assert.Equal(t, ivr.DialResume{Status: "busy", Duration: 10}, resume)
+
+	req.Form = url.Values{
+		"wait_type": []string{"record"},
+		"RecordingUrl": []string{"example.com/chill-town"},
+	}
+
+	resume, err = tClient.ResumeForRequest(req)
+	assert.NoError(t, err)
+	assert.Equal(t, ivr.InputResume{Attachment: "audio/mp3:example.com/chill-town.mp3"}, resume)
+}
+
+func TestValidateRequestSignature(t *testing.T) {
+	ctx, db, _ := testsuite.Reset()
+	defer testsuite.Reset()
+
+	tClient, err := getTestClient(ctx, db, t)
+	postFormData := url.Values{"Digits": []string{"10"}}
+	sig, err := twCalculateSignature("https://temba.io/", postFormData, "twillio")
+	assert.NoError(t, err)
+
+	req, err := getTestRequest(`{}`, "")
+	assert.NoError(t, err)
+
+	fmt.Println(string(sig))
+	err = tClient.ValidateRequestSignature(req)
+	assert.Error(t, err, "missing request signature header")
+
+	req.Header.Set("X-Twilio-Signature", "wrong-signature")
+	err = tClient.ValidateRequestSignature(req)
+	assert.Error(t, err, "invalid request signature: wrong-signature")
+
+	req.Header.Set("X-Twilio-Signature", string(sig))
+	req.PostForm = postFormData
+	err = tClient.ValidateRequestSignature(req)
+	assert.NoError(t, err)
+}
+
+func getTestRequest(reqBody string, reqPath string) (*http.Request, error) {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqURL := "https://temba.io" + reqPath
+	body := strings.NewReader(reqBody)
+	return httpx.NewRequest("GET", reqURL, body, headers)
+}
+
+func getTestClient(ctx context.Context, db *sqlx.DB, t *testing.T) (ivr.Client, error) {
+	db.MustExec(`UPDATE channels_channel SET config = '{"account_sid": "twillio", "auth_token": "twillio"}' WHERE id = $1`, models.TwilioChannelID)
+	oa, err := models.GetOrgAssets(ctx, db, models.Org1)
+	assert.NoError(t, err)
+	channel := oa.ChannelByUUID(models.TwilioChannelUUID)
+	assert.NotNil(t, channel)
+
+	return NewClientFromChannel(http.DefaultClient, channel)
 }
