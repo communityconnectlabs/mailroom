@@ -4,13 +4,14 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
-
+	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"github.com/nyaruka/gocommon/jsonx"
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/gocommon/uuids"
-	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/nyaruka/mailroom/utils/dbutil"
 	"github.com/nyaruka/null"
-
 	"github.com/pkg/errors"
 )
 
@@ -381,4 +382,108 @@ func (i *StartID) Scan(value interface{}) error {
 func ReadSessionHistory(data []byte) (*flows.SessionHistory, error) {
 	h := &flows.SessionHistory{}
 	return h, jsonx.Unmarshal(data, h)
+}
+
+// StudioFlowStart represents the top level studio flow start in our system
+type StudioFlowStart struct {
+	s struct {
+		ID        StartID    `json:"start_id"   db:"id"`
+		UUID      uuids.UUID `                  db:"uuid"`
+		OrgID     OrgID      `json:"org_id"     db:"org_id"`
+		FlowSID   string     `json:"flow_sid"   db:"flow_sid"`
+		ChannelID ChannelID  `json:"channel_id" db:"channel_id"`
+
+		GroupIDs   []GroupID   `json:"group_ids,omitempty"`
+		ContactIDs []ContactID `json:"contact_ids,omitempty"`
+	}
+}
+
+func (s *StudioFlowStart) ID() StartID             { return s.s.ID }
+func (s *StudioFlowStart) OrgID() OrgID            { return s.s.OrgID }
+func (s *StudioFlowStart) FlowSID() string         { return s.s.FlowSID }
+func (s *StudioFlowStart) GroupIDs() []GroupID     { return s.s.GroupIDs }
+func (s *StudioFlowStart) ContactIDs() []ContactID { return s.s.ContactIDs }
+
+func (s *StudioFlowStart) MarshalJSON() ([]byte, error)    { return json.Marshal(s.s) }
+func (s *StudioFlowStart) UnmarshalJSON(data []byte) error { return json.Unmarshal(data, &s.s) }
+
+const loadContactPhonesSQL = `
+SELECT
+    DISTINCT urns.path
+FROM
+    contacts_contacturn urns
+WHERE
+	scheme='tel' AND
+    urns.contact_id = ANY($1);
+`
+
+func (s *StudioFlowStart) LoadContactPhones(ctx context.Context, db *sqlx.DB, ids []int64) ([]string, error) {
+	rows, err := db.QueryxContext(ctx, loadContactPhonesSQL, pq.Array(ids))
+	if err != nil {
+		return nil, errors.Wrapf(err, "error querying urns for studio flow start: %d", s.ID())
+	}
+	defer rows.Close()
+
+	var path string
+	contactURNs := make([]string, 0)
+	for rows.Next() {
+		err := rows.Scan(&path)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error getting urn")
+		}
+		contactURNs = append(contactURNs, path)
+	}
+	return contactURNs, nil
+}
+
+const selectChannelSQL = `
+SELECT ROW_TO_JSON(r) FROM (SELECT
+	c.id as id,
+	c.uuid as uuid,
+	(SELECT ROW_TO_JSON(p) FROM (SELECT uuid, name FROM channels_channel cc where cc.id = c.parent_id) p) as parent,
+	c.name as name,
+	c.channel_type as channel_type,
+	COALESCE(c.tps, 10) as tps,
+	c.country as country,
+	c.address as address,
+	c.schemes as schemes,
+	COALESCE(c.config, '{}')::json as config,
+	(SELECT ARRAY(
+		SELECT CASE r 
+		WHEN 'R' THEN 'receive' 
+		WHEN 'S' THEN 'send'
+		WHEN 'C' THEN 'call'
+		WHEN 'A' THEN 'answer'
+		WHEN 'U' THEN 'ussd'
+		END 
+		FROM unnest(regexp_split_to_array(c.role,'')) as r)
+	) as roles,
+	JSON_EXTRACT_PATH(c.config::json, 'matching_prefixes') as match_prefixes,
+	JSON_EXTRACT_PATH(c.config::json, 'allow_international') as allow_international
+FROM 
+	channels_channel c
+WHERE 
+	c.id = $1
+) r;
+`
+
+func (s *StudioFlowStart) LoadChannel(ctx context.Context, db *sqlx.DB) (*Channel, error) {
+	if _, err := s.s.ChannelID.Value(); err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryxContext(ctx, selectChannelSQL, s.s.ChannelID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error querying urns for studio flow start: %d", s.ID())
+	}
+	defer rows.Close()
+
+	channel := &Channel{}
+	for rows.Next() {
+		err := dbutil.ReadJSONRow(rows, &channel.c)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error unmarshalling channel")
+		}
+	}
+	return channel, nil
 }
