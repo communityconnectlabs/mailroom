@@ -276,15 +276,18 @@ func handleStudioFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *que
 	// 80 mps limiting for the twilio
 	chunkSize := 80
 	chunkNumber := 0
+	successCount := 0
+	failureCount := 0
+	client := http.DefaultClient
+	totalContactIDs := len(contactIDs)
 	contactIDChunkSelector := func(chunkIndex int) []int64 {
-		length := len(contactIDs)
 		start := chunkIndex * chunkSize
-		if start > length {
+		end := start + chunkSize
+		if start > totalContactIDs {
 			return []int64{}
 		}
-		end := start + chunkSize
-		if end > length {
-			end = length
+		if end > totalContactIDs {
+			end = totalContactIDs
 		}
 		return contactIDs[start:end]
 	}
@@ -292,11 +295,12 @@ func handleStudioFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *que
 	for range time.Tick(1 * time.Second) {
 		contactIDsChunk := contactIDChunkSelector(chunkNumber)
 		if len(contactIDsChunk) == 0 {
-			return nil
+			break
 		}
 
 		contactPhones, err := startTask.LoadContactPhones(ctx, db, contactIDsChunk)
 		if err != nil {
+			startTask.MarkStartFailed(ctx, db)
 			return errors.Wrapf(err, "error getting contact urns")
 		}
 
@@ -309,15 +313,29 @@ func handleStudioFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *que
 
 			req, err := http.NewRequest(http.MethodPost, sendURL, strings.NewReader(form.Encode()))
 			if err != nil {
+				startTask.MarkStartFailed(ctx, db)
 				return err
 			}
 			req.SetBasicAuth(accountSID, accountToken)
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("Accept", "application/json")
 
-			//rr, err := MakeHTTPRequest(req)
+			resp, err := client.Do(req)
+			if err != nil || resp.StatusCode != 201 {
+				failureCount++
+			} else {
+				successCount++
+			}
 		}
 		chunkNumber++
+
+		startTask.WithMetadata(map[string]interface{}{
+			"total_contacts":    totalContactIDs,
+			"success_count":     successCount,
+			"failure_count":     failureCount,
+			"processed_batches": chunkNumber,
+			"batch_size":        chunkSize,
+		}).UpdateMetadata(ctx, db)
 	}
-	return nil
+	return startTask.MarkStartComplete(ctx, db)
 }

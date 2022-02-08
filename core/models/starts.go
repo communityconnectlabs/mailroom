@@ -395,6 +395,8 @@ type StudioFlowStart struct {
 
 		GroupIDs   []GroupID   `json:"group_ids,omitempty"`
 		ContactIDs []ContactID `json:"contact_ids,omitempty"`
+
+		Metadata map[string]interface{} `json:"metadata" db:"metadata"`
 	}
 }
 
@@ -486,4 +488,48 @@ func (s *StudioFlowStart) LoadChannel(ctx context.Context, db *sqlx.DB) (*Channe
 		}
 	}
 	return channel, nil
+}
+
+func (s *StudioFlowStart) WithMetadata(metadata map[string]interface{}) *StudioFlowStart {
+	s.s.Metadata = metadata
+	return s
+}
+
+const updateStudioFlowMetadata = `
+UPDATE flows_studioflowstart SET metadata = $2, modified_on = NOW() WHERE id = $1
+`
+
+func (s *StudioFlowStart) UpdateMetadata(ctx context.Context, db *sqlx.DB) error {
+	if encodedMetadata, err := json.Marshal(s.s.Metadata); err == nil {
+		if _, err = db.ExecContext(ctx, updateStudioFlowMetadata, s.ID(), encodedMetadata); err != nil {
+			return errors.Wrapf(err, "error updating metadata")
+		}
+	} else {
+		return errors.Wrapf(err, "error marshaling metadata")
+	}
+	return nil
+}
+
+func (s *StudioFlowStart) MarkStartStarted(ctx context.Context, db *sqlx.DB) error {
+	_, err := db.ExecContext(ctx, "UPDATE flows_studioflowstart SET status = 'S', modified_on = NOW() WHERE id = $1", s.ID())
+	if err != nil {
+		return errors.Wrapf(err, "error setting start as started")
+	}
+	return nil
+}
+
+func (s *StudioFlowStart) MarkStartComplete(ctx context.Context, db *sqlx.DB) error {
+	_, err := db.ExecContext(ctx, "UPDATE flows_studioflowstart SET status = 'C', modified_on = NOW() WHERE id = $1", s.ID())
+	if err != nil {
+		return errors.Wrapf(err, "error setting start as complete")
+	}
+	return nil
+}
+
+func (s *StudioFlowStart) MarkStartFailed(ctx context.Context, db *sqlx.DB) error {
+	_, err := db.ExecContext(ctx, "UPDATE flows_studioflowstart SET status = 'F', modified_on = NOW() WHERE id = $1", s.ID())
+	if err != nil {
+		return errors.Wrapf(err, "error setting start as failed")
+	}
+	return nil
 }
