@@ -213,6 +213,12 @@ func handleFlowStartBatch(ctx context.Context, mr *mailroom.Mailroom, task *queu
 	return err
 }
 
+type RequestSender interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
+var requestSender RequestSender = http.DefaultClient
+
 func handleStudioFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *queue.Task) error {
 	db := mr.DB
 	ctx, cancel := context.WithTimeout(ctx, time.Minute*60)
@@ -278,7 +284,6 @@ func handleStudioFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *que
 	chunkNumber := 0
 	successCount := 0
 	failureCount := 0
-	client := http.DefaultClient
 	totalContactIDs := len(contactIDs)
 	contactIDChunkSelector := func(chunkIndex int) []int64 {
 		start := chunkIndex * chunkSize
@@ -320,7 +325,7 @@ func handleStudioFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *que
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("Accept", "application/json")
 
-			resp, err := client.Do(req)
+			resp, err := requestSender.Do(req)
 			if err != nil || resp.StatusCode != 201 {
 				failureCount++
 			} else {
