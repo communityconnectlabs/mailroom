@@ -230,19 +230,17 @@ func handleStudioFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *que
 		return errors.Wrapf(err, "error unmarshalling studio flow start task: %s", string(task.Task))
 	}
 
-	channel, err := startTask.LoadChannel(ctx, db)
+	accountSID, accountToken, err := startTask.LoadTwilioConfig(ctx, db)
 	if err != nil {
 		return errors.Wrapf(err, "error loading studio flow start channel")
 	}
 
-	accountSID := channel.ConfigValue("account_sid", "")
 	if accountSID == "" {
-		return errors.Wrapf(err, "missing account sid for %s channel", channel.Name())
+		return errors.Wrapf(err, "missing account sid for %d org", task.OrgID)
 	}
 
-	accountToken := channel.ConfigValue("auth_token", "")
 	if accountToken == "" {
-		return errors.Wrapf(err, "missing account auth token for %s channel", channel.Name())
+		return errors.Wrapf(err, "missing account auth token for %d org", task.OrgID)
 	}
 
 	contactIDsSet := make(map[models.ContactID]bool)
@@ -313,7 +311,7 @@ func handleStudioFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *que
 		for _, phone := range contactPhones {
 			form := url.Values{
 				"To":   []string{phone},
-				"From": []string{channel.Address()},
+				"From": []string{startTask.Channel()},
 			}
 
 			req, err := http.NewRequest(http.MethodPost, sendURL, strings.NewReader(form.Encode()))

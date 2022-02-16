@@ -10,7 +10,6 @@ import (
 	"github.com/nyaruka/gocommon/jsonx"
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/gocommon/uuids"
-	"github.com/nyaruka/mailroom/utils/dbutil"
 	"github.com/nyaruka/null"
 	"github.com/pkg/errors"
 )
@@ -387,11 +386,11 @@ func ReadSessionHistory(data []byte) (*flows.SessionHistory, error) {
 // StudioFlowStart represents the top level studio flow start in our system
 type StudioFlowStart struct {
 	s struct {
-		ID        StartID    `json:"start_id"   db:"id"`
-		UUID      uuids.UUID `                  db:"uuid"`
-		OrgID     OrgID      `json:"org_id"     db:"org_id"`
-		FlowSID   string     `json:"flow_sid"   db:"flow_sid"`
-		ChannelID ChannelID  `json:"channel_id" db:"channel_id"`
+		ID      StartID    `json:"start_id"   db:"id"`
+		UUID    uuids.UUID `                  db:"uuid"`
+		OrgID   OrgID      `json:"org_id"     db:"org_id"`
+		FlowSID string     `json:"flow_sid"   db:"flow_sid"`
+		Channel string     `json:"channel"    db:"channel"`
 
 		GroupIDs   []GroupID   `json:"group_ids,omitempty"`
 		ContactIDs []ContactID `json:"contact_ids,omitempty"`
@@ -405,6 +404,7 @@ func (s *StudioFlowStart) OrgID() OrgID            { return s.s.OrgID }
 func (s *StudioFlowStart) FlowSID() string         { return s.s.FlowSID }
 func (s *StudioFlowStart) GroupIDs() []GroupID     { return s.s.GroupIDs }
 func (s *StudioFlowStart) ContactIDs() []ContactID { return s.s.ContactIDs }
+func (s *StudioFlowStart) Channel() string         { return s.s.Channel }
 
 func (s *StudioFlowStart) MarshalJSON() ([]byte, error)    { return json.Marshal(s.s) }
 func (s *StudioFlowStart) UnmarshalJSON(data []byte) error { return json.Unmarshal(data, &s.s) }
@@ -438,56 +438,34 @@ func (s *StudioFlowStart) LoadContactPhones(ctx context.Context, db *sqlx.DB, id
 	return contactURNs, nil
 }
 
-const selectChannelSQL = `
-SELECT ROW_TO_JSON(r) FROM (SELECT
-	c.id as id,
-	c.uuid as uuid,
-	(SELECT ROW_TO_JSON(p) FROM (SELECT uuid, name FROM channels_channel cc where cc.id = c.parent_id) p) as parent,
-	c.name as name,
-	c.channel_type as channel_type,
-	COALESCE(c.tps, 10) as tps,
-	c.country as country,
-	c.address as address,
-	c.schemes as schemes,
-	COALESCE(c.config, '{}')::json as config,
-	(SELECT ARRAY(
-		SELECT CASE r 
-		WHEN 'R' THEN 'receive' 
-		WHEN 'S' THEN 'send'
-		WHEN 'C' THEN 'call'
-		WHEN 'A' THEN 'answer'
-		WHEN 'U' THEN 'ussd'
-		END 
-		FROM unnest(regexp_split_to_array(c.role,'')) as r)
-	) as roles,
-	JSON_EXTRACT_PATH(c.config::json, 'matching_prefixes') as match_prefixes,
-	JSON_EXTRACT_PATH(c.config::json, 'allow_international') as allow_international
-FROM 
-	channels_channel c
-WHERE 
-	c.id = $1
-) r;
+const selectTwilioConfigSQL = `
+SELECT
+       s.config_json->>'ACCOUNT_SID' as account_sid,
+       s.config_json->>'ACCOUNT_TOKEN' as account_token
+FROM (
+	SELECT 
+		config::json as config_json 
+	FROM orgs_org 
+	WHERE id = $1
+) s;
 `
 
-func (s *StudioFlowStart) LoadChannel(ctx context.Context, db *sqlx.DB) (*Channel, error) {
-	if _, err := s.s.ChannelID.Value(); err != nil {
-		return nil, err
-	}
-
-	rows, err := db.QueryxContext(ctx, selectChannelSQL, s.s.ChannelID)
+func (s *StudioFlowStart) LoadTwilioConfig(ctx context.Context, db *sqlx.DB) (string, string, error) {
+	rows, err := db.QueryxContext(ctx, selectTwilioConfigSQL, s.s.OrgID)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error querying urns for studio flow start: %d", s.ID())
+		return "", "", errors.Wrapf(err, "error querying urns for studio flow start: %d", s.ID())
 	}
 	defer rows.Close()
 
-	channel := &Channel{}
+	var accountSID string
+	var accountToken string
 	for rows.Next() {
-		err := dbutil.ReadJSONRow(rows, &channel.c)
+		err := rows.Scan(&accountSID, &accountToken)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error unmarshalling channel")
+			return "", "", errors.Wrapf(err, "error selecting twilio config")
 		}
 	}
-	return channel, nil
+	return accountSID, accountToken, nil
 }
 
 func (s *StudioFlowStart) WithMetadata(metadata map[string]interface{}) *StudioFlowStart {

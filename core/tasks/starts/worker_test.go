@@ -321,6 +321,7 @@ func (mhc *mockHttpClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 const createStudioFlowStartTable = `
+UPDATE orgs_org SET config = '{"ACCOUNT_SID": "account_sid", "ACCOUNT_TOKEN": "account_token"}' WHERE id = 1;
 CREATE TABLE IF NOT EXISTS flows_studioflowstart
 (
     id serial not null constraint flows_studioflowstart_pkey primary key,
