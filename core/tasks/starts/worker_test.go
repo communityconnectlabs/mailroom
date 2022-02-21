@@ -3,8 +3,6 @@ package starts
 import (
 	"encoding/json"
 	"fmt"
-	"testing"
-
 	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/mailroom"
 	"github.com/nyaruka/mailroom/config"
@@ -13,10 +11,11 @@ import (
 	"github.com/nyaruka/mailroom/core/queue"
 	"github.com/nyaruka/mailroom/core/runner"
 	"github.com/nyaruka/mailroom/testsuite"
-
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"net/http"
+	"testing"
 )
 
 func TestStarts(t *testing.T) {
@@ -310,4 +309,72 @@ func TestStarts(t *testing.T) {
 			testsuite.AssertQueryCount(t, db, `SELECT count(*) FROM flows_flowrun WHERE status = 'W' AND flow_id = $1`, []interface{}{flowID}, activeRuns, "active runs mismatch for flow #%d in '%s'", flowID, tc.label)
 		}
 	}
+}
+
+type mockHttpClient struct {
+	LastRequest *http.Request
+}
+
+func (mhc *mockHttpClient) Do(req *http.Request) (*http.Response, error) {
+	mhc.LastRequest = req
+	return &http.Response{StatusCode: 200}, nil
+}
+
+const createStudioFlowStartTable = `
+UPDATE orgs_org SET config = '{"ACCOUNT_SID": "account_sid", "ACCOUNT_TOKEN": "account_token"}' WHERE id = 1;
+CREATE TABLE IF NOT EXISTS flows_studioflowstart
+(
+    id serial not null constraint flows_studioflowstart_pkey primary key,
+    uuid uuid not null constraint flows_studioflowstart_uuid_key unique,
+    flow_sid   varchar(64) not null,
+    status     varchar(1)  not null,
+    org_id integer not null constraint flows_studioflowstart_org_id_8b06fe26_fk_orgs_org_id references orgs_org deferrable initially deferred,
+    channel_id integer not null constraint flows_studioflowstar_channel_id_15399058_fk_channels_ references channels_channel deferrable initially deferred,
+    created_by_id integer constraint flows_studioflowstart_created_by_id_650bb2e5_fk_auth_user_id references auth_user deferrable initially deferred,
+    metadata jsonb not null,
+	created_on    timestamp with time zone not null,
+    modified_on   timestamp with time zone not null
+);
+`
+
+func TestStudioFlowStarts(t *testing.T) {
+	testsuite.Reset()
+	ctx := testsuite.CTX()
+	rp := testsuite.RP()
+	db := testsuite.DB()
+
+	mes := testsuite.NewMockElasticServer()
+	defer mes.Close()
+	es, err := elastic.NewClient(
+		elastic.SetURL(mes.URL()),
+		elastic.SetHealthcheck(false),
+		elastic.SetSniff(false),
+	)
+	require.NoError(t, err)
+
+	mr := &mailroom.Mailroom{Config: config.Mailroom, DB: db, RP: rp, ElasticClient: es}
+
+	startTask := map[string]interface{}{
+		"org_id":      1,
+		"start_id":    1,
+		"flow_sid":    "FW2932f221ca8741fb714ff97df7986172",
+		"channel_id":  models.TwilioChannelID,
+		"contact_ids": []int64{int64(models.GeorgeID)},
+	}
+	startTaskEncoded, _ := json.Marshal(startTask)
+	task := &queue.Task{
+		OrgID: 1,
+		Type:  queue.StartStudioFlow,
+		Task:  startTaskEncoded,
+	}
+	db.MustExecContext(ctx, createStudioFlowStartTable)
+	db.MustExecContext(ctx, `INSERT INTO flows_studioflowstart(org_id, uuid, status, metadata, flow_sid, channel_id, created_by_id, created_on, modified_on) 
+				            VALUES(1, $1, 'P', '{}', 'FW2932f221ca8741fb714ff97df7986172', $2, $3, now(), now());`,
+		uuids.New(), models.TwilioChannelID, int64(2),
+	)
+
+	requestSender = &mockHttpClient{}
+	err = handleStudioFlowStart(ctx, mr, task)
+	assert.NoError(t, err)
+	requestSender = http.DefaultClient
 }
