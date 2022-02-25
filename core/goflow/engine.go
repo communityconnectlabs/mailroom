@@ -4,9 +4,9 @@ import (
 	"sync"
 
 	"github.com/nyaruka/gocommon/urns"
-	"github.com/nyaruka/goflow/flows"
-	"github.com/nyaruka/goflow/flows/engine"
-	"github.com/nyaruka/goflow/services/webhooks"
+	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/greatnonprofits-nfp/goflow/flows/engine"
+	"github.com/greatnonprofits-nfp/goflow/services/webhooks"
 	"github.com/nyaruka/mailroom/config"
 
 	"github.com/shopspring/decimal"
@@ -79,9 +79,9 @@ func Simulator(cfg *config.Config) flows.Engine {
 
 		simulator = engine.NewBuilder().
 			WithWebhookServiceFactory(webhooks.NewServiceFactory(httpClient, nil, httpAccess, webhookHeaders, cfg.WebhooksMaxBodyBytes)).
-			WithClassificationServiceFactory(classificationFactory).   // simulated sessions do real classification
-			WithEmailServiceFactory(simulatorEmailServiceFactory).     // but faked emails
-			WithTicketServiceFactory(simulatorTicketServiceFactory).   // and faked tickets
+			WithClassificationServiceFactory(classificationFactory). // simulated sessions do real classification
+			WithEmailServiceFactory(simulatorEmailServiceFactory). // but faked emails
+			WithTicketServiceFactory(simulatorTicketServiceFactory). // and faked tickets
 			WithAirtimeServiceFactory(simulatorAirtimeServiceFactory). // and faked airtime transfers
 			WithMaxStepsPerSprint(cfg.MaxStepsPerSprint).
 			Build()
