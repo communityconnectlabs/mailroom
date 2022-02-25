@@ -15,6 +15,7 @@ import (
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/core/queue"
 	"github.com/nyaruka/mailroom/core/runner"
+	"github.com/nyaruka/mailroom/runtime"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/jmoiron/sqlx"
@@ -35,7 +36,7 @@ func init() {
 }
 
 // handleFlowStart creates all the batches of contacts to start in a flow
-func handleFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *queue.Task) error {
+func handleFlowStart(ctx context.Context, rt *runtime.Runtime, task *queue.Task) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute*60)
 	defer cancel()
 
@@ -49,9 +50,9 @@ func handleFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *queue.Tas
 		return errors.Wrapf(err, "error unmarshalling flow start task: %s", string(task.Task))
 	}
 
-	err = CreateFlowBatches(ctx, mr.DB, mr.RP, mr.ElasticClient, startTask)
+	err = CreateFlowBatches(ctx, rt.DB, rt.RP, rt.ES, startTask)
 	if err != nil {
-		models.MarkStartFailed(ctx, mr.DB, startTask.ID())
+		models.MarkStartFailed(ctx, rt.DB, startTask.ID())
 
 		// if error is user created query error.. don't escalate error to sentry
 		isQueryError, _ := contactql.IsQueryError(err)
@@ -102,11 +103,11 @@ func CreateFlowBatches(ctx context.Context, db *sqlx.DB, rp *redis.Pool, ec *ela
 		createdContactIDs = append(createdContactIDs, contact.ID())
 	}
 
-	// now add all the ids for our groups
+	// if we have inclusion groups, add all the contact ids from those groups
 	if len(start.GroupIDs()) > 0 {
 		rows, err := db.QueryxContext(ctx, `SELECT contact_id FROM contacts_contactgroup_contacts WHERE contactgroup_id = ANY($1)`, pq.Array(start.GroupIDs()))
 		if err != nil {
-			return errors.Wrapf(err, "error selecting contacts for groups")
+			return errors.Wrapf(err, "error querying contacts from inclusion groups")
 		}
 		defer rows.Close()
 
@@ -120,7 +121,7 @@ func CreateFlowBatches(ctx context.Context, db *sqlx.DB, rp *redis.Pool, ec *ela
 		}
 	}
 
-	// finally, if we have a query, add the contacts that match that as well
+	// if we have a query, add the contacts that match that as well
 	if start.Query() != "" {
 		matches, err := models.ContactIDsForQuery(ctx, ec, oa, start.Query())
 		if err != nil {
@@ -129,6 +130,24 @@ func CreateFlowBatches(ctx context.Context, db *sqlx.DB, rp *redis.Pool, ec *ela
 
 		for _, contactID := range matches {
 			contactIDs[contactID] = true
+		}
+	}
+
+	// finally, if we have exclusion groups, remove all the contact ids from those groups
+	if len(start.ExcludeGroupIDs()) > 0 {
+		rows, err := db.QueryxContext(ctx, `SELECT contact_id FROM contacts_contactgroup_contacts WHERE contactgroup_id = ANY($1)`, pq.Array(start.ExcludeGroupIDs()))
+		if err != nil {
+			return errors.Wrapf(err, "error querying contacts from exclusion groups")
+		}
+		defer rows.Close()
+
+		var contactID models.ContactID
+		for rows.Next() {
+			err := rows.Scan(&contactID)
+			if err != nil {
+				return errors.Wrapf(err, "error scanning contact id")
+			}
+			delete(contactIDs, contactID)
 		}
 	}
 
@@ -190,7 +209,7 @@ func CreateFlowBatches(ctx context.Context, db *sqlx.DB, rp *redis.Pool, ec *ela
 }
 
 // HandleFlowStartBatch starts a batch of contacts in a flow
-func handleFlowStartBatch(ctx context.Context, mr *mailroom.Mailroom, task *queue.Task) error {
+func handleFlowStartBatch(ctx context.Context, rt *runtime.Runtime, task *queue.Task) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute*15)
 	defer cancel()
 
@@ -205,7 +224,7 @@ func handleFlowStartBatch(ctx context.Context, mr *mailroom.Mailroom, task *queu
 	}
 
 	// start these contacts in our flow
-	_, err = runner.StartFlowBatch(ctx, mr.DB, mr.RP, startBatch)
+	_, err = runner.StartFlowBatch(ctx, rt, startBatch)
 	if err != nil {
 		return errors.Wrapf(err, "error starting flow batch: %s", string(task.Task))
 	}

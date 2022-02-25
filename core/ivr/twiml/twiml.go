@@ -17,12 +17,13 @@ import (
 
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/gocommon/urns"
-	"github.com/greatnonprofits-nfp/goflow/envs"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/flows/events"
-	"github.com/greatnonprofits-nfp/goflow/flows/routers/waits"
-	"github.com/greatnonprofits-nfp/goflow/flows/routers/waits/hints"
-	"github.com/greatnonprofits-nfp/goflow/utils"
+	"github.com/nyaruka/goflow/envs"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/flows/events"
+	"github.com/nyaruka/goflow/flows/routers/waits"
+	"github.com/nyaruka/goflow/flows/routers/waits/hints"
+	"github.com/nyaruka/goflow/utils"
+	"github.com/nyaruka/mailroom/config"
 	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/mailroom/core/models"
 
@@ -67,13 +68,6 @@ const (
 
 	sendURLConfig = "send_url"
 	baseURLConfig = "base_url"
-
-	errorBody = `<?xml version="1.0" encoding="UTF-8"?>
-	<Response>
-		<Say>An error was encountered. Goodbye.</Say>
-		<Hangup></Hangup>
-	</Response>
-	`
 )
 
 var validLanguageCodes = map[string]bool{
@@ -517,7 +511,7 @@ func responseForSprint(number urns.URN, resumeURL string, w flows.ActivatedWait,
 			if len(event.Msg.Attachments()) == 0 {
 				country := envs.DeriveCountryFromTel(number.Path())
 				locale := envs.NewLocale(event.Msg.TextLanguage, country)
-				languageCode := locale.ToISO639_2()
+				languageCode := locale.ToBCP47()
 
 				if _, valid := validLanguageCodes[languageCode]; !valid {
 					if len(languageCode) < 2 {
@@ -532,7 +526,7 @@ func responseForSprint(number urns.URN, resumeURL string, w flows.ActivatedWait,
 				commands = append(commands, Say{Text: event.Msg.Text(), Language: languageCode})
 			} else {
 				for _, a := range event.Msg.Attachments() {
-					a = models.NormalizeAttachment(a)
+					a = models.NormalizeAttachment(config.Mailroom, a)
 					commands = append(commands, Play{URL: a.URL()})
 				}
 			}

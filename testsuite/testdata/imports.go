@@ -2,7 +2,6 @@ package testdata
 
 import (
 	"encoding/json"
-	"testing"
 
 	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/gocommon/jsonx"
@@ -22,10 +21,9 @@ func InsertContactImport(t *testing.T, db *sqlx.DB, orgID models.OrgID, validate
 }
 
 // InsertContactImportBatch inserts a contact import batch
-func InsertContactImportBatch(t *testing.T, db *sqlx.DB, importID models.ContactImportID, specs json.RawMessage) models.ContactImportBatchID {
+func InsertContactImportBatch(db *sqlx.DB, importID models.ContactImportID, specs json.RawMessage) models.ContactImportBatchID {
 	var splitSpecs []json.RawMessage
-	err := jsonx.Unmarshal(specs, &splitSpecs)
-	require.NoError(t, err)
+	must(jsonx.Unmarshal(specs, &splitSpecs))
 
 	var batchID models.ContactImportBatchID
 	err = db.Get(&batchID, `INSERT INTO contacts_contactimportbatch(contact_import_id, status, specs, record_start, record_end, num_created, num_updated, num_errored, errors, finished_on, num_blocked, blocked_uuids, carrier_groups)
