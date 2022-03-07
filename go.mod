@@ -3,7 +3,7 @@ module github.com/nyaruka/mailroom
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/apex/log v1.1.4
-	github.com/aws/aws-sdk-go v1.40.56
+	github.com/aws/aws-sdk-go v1.36.30
 	github.com/buger/jsonparser v1.0.0
 	github.com/certifi/gocertifi v0.0.0-20200211180108-c7c1fbc02894 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
@@ -15,15 +15,17 @@ require (
 	github.com/gomodule/redigo v2.0.0+incompatible
 	github.com/gorilla/schema v1.1.0
 	github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220215200155-e1cc13065b93
-	github.com/jmoiron/sqlx v1.3.4
+	github.com/jmoiron/sqlx v1.2.0
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/lib/pq v1.10.4
+	github.com/lib/pq v1.9.0
+	github.com/mattn/go-sqlite3 v1.10.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/nyaruka/ezconf v0.2.1
-	github.com/nyaruka/gocommon v1.17.1
+	github.com/nyaruka/gocommon v1.12.0
 	github.com/nyaruka/librato v1.0.0
 	github.com/nyaruka/logrus_sentry v0.8.2-0.20190129182604-c2962b80ba7d
 	github.com/nyaruka/null v1.2.0
+	github.com/nyaruka/phonenumbers v1.0.65 // indirect
 	github.com/olivere/elastic/v7 v7.0.22
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1

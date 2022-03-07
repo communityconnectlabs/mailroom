@@ -401,7 +401,6 @@ func StartIVRFlow(
 // ResumeIVRFlow takes care of resuming the flow in the passed in start for the passed in contact and URN
 func ResumeIVRFlow(
 	ctx context.Context, rt *runtime.Runtime,
-    config *config.Config, db *sqlx.DB, rp *redis.Pool, store storage.Storage,
 	resumeURL string, client Client,
 	oa *models.OrgAssets, channel *models.Channel, conn *models.ChannelConnection, c *models.Contact, urn urns.URN,
 	r *http.Request, w http.ResponseWriter) error {

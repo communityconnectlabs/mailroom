@@ -238,8 +238,8 @@ type RequestSender interface {
 
 var requestSender RequestSender = http.DefaultClient
 
-func handleStudioFlowStart(ctx context.Context, mr *mailroom.Mailroom, task *queue.Task) error {
-	db := mr.DB
+func handleStudioFlowStart(ctx context.Context, rt *runtime.Runtime, task *queue.Task) error {
+	db := rt.DB
 	ctx, cancel := context.WithTimeout(ctx, time.Minute*60)
 	defer cancel()
 

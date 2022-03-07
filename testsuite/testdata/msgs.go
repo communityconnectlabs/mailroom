@@ -32,7 +32,7 @@ func InsertIncomingMsg(db *sqlx.DB, org *Org, channel *Channel, contact *Contact
 
 // InsertOutgoingMsg inserts an outgoing message
 func InsertOutgoingMsg(db *sqlx.DB, org *Org, channel *Channel, contact *Contact, text string, attachments []utils.Attachment, status models.MsgStatus) *flows.MsgOut {
-	msg := flows.NewMsgOut(contact.URN, assets.NewChannelReference(channel.UUID, ""), text, attachments, nil, nil, flows.NilMsgTopic)
+	msg := flows.NewMsgOut(contact.URN, assets.NewChannelReference(channel.UUID, ""), text, attachments, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})
 
 	var id flows.MsgID
 	must(db.Get(&id,

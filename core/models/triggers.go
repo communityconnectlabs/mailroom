@@ -59,6 +59,7 @@ type Trigger struct {
 		IncludeGroupIDs []GroupID   `json:"include_group_ids"`
 		ExcludeGroupIDs []GroupID   `json:"exclude_group_ids"`
 		ContactIDs      []ContactID `json:"contact_ids,omitempty"`
+		Extra           string      `json:"extra"`
 	}
 }
 

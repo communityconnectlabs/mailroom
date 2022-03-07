@@ -62,12 +62,6 @@ func HandleEvent(ctx context.Context, rt *runtime.Runtime, task *queue.Task) err
 	return handleContactEvent(ctx, rt, task)
 }
 
-// Called when an event comes in for a contact. To make sure we don't get into a situation of being off by one,
-// this task ingests and handles all the events for a contact, one by one.
-func handleContactEvent(ctx context.Context, rt *runtime.Runtime, task *queue.Task) error {
-	mailroom.AddTaskFunction(queue.HandleContactEvent, handleEvent)
-}
-
 // AddHandleTask adds a single task for the passed in contact.
 func AddHandleTask(rc redis.Conn, contactID models.ContactID, task *queue.Task) error {
 	return addHandleTask(rc, contactID, task, false)
@@ -112,13 +106,9 @@ func addHandleTask(rc redis.Conn, contactID models.ContactID, task *queue.Task, 
 	return addContactTask(rc, models.OrgID(task.OrgID), contactID)
 }
 
-func handleEvent(ctx context.Context, mr *mailroom.Mailroom, task *queue.Task) error {
-	return handleContactEvent(ctx, mr.DB, mr.RP, task, mr.Storage, mr.Config)
-}
-
 // handleContactEvent is called when an event comes in for a contact.  to make sure we don't get into
 // a situation of being off by one, this task ingests and handles all the events for a contact, one by one
-func handleContactEvent(ctx context.Context, db *sqlx.DB, rp *redis.Pool, task *queue.Task, s3storage storage.Storage, config *config.Config) error {
+func handleContactEvent(ctx context.Context, rt *runtime.Runtime, task *queue.Task) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 	defer cancel()
 
@@ -203,7 +193,7 @@ func handleContactEvent(ctx context.Context, db *sqlx.DB, rp *redis.Pool, task *
 			if err != nil {
 				return errors.Wrapf(err, "error unmarshalling msg event: %s", event)
 			}
-			err = handleMsgEvent(ctx, rt, msg)
+			err = handleMsgEvent(ctx, rt, msg, rt.MediaStorage, rt.Config)
 
 		case TicketClosedEventType:
 			evt := &models.TicketEvent{}
@@ -614,7 +604,7 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s
 			return errors.Wrapf(err, "error unstopping contact")
 		}
 
-		err = models.AddContactToOptOutedGroups(ctx, db, event.OrgID, modelContact.ID())
+		err = models.AddContactToOptOutedGroups(ctx, rt.DB, event.OrgID, modelContact.ID())
 		if err != nil {
 			return errors.Wrapf(err, "error adding contact to groups")
 		}
@@ -664,7 +654,7 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s
 		}
 
 		if len(event.Attachments) > 0 {
-			flowImageErr := NewHandleFlowImage(ctx, db, s3storage, config, event.OrgID, event.ContactID, flow.ID(), event.Attachments)
+			flowImageErr := NewHandleFlowImage(ctx, rt.DB, s3storage, config, event.OrgID, event.ContactID, flow.ID(), event.Attachments)
 			if flowImageErr != nil {
 				return errors.Wrapf(err, "error handling flow image")
 			}
@@ -995,7 +985,7 @@ func NewHandleFlowImage(ctx context.Context, db *sqlx.DB, s3storage storage.Stor
 
 			content, _ := ioutil.ReadFile(tmpImageName)
 
-			thumbnailURL, _ = s3storage.Put(s3Path, "image/jpeg", content)
+			thumbnailURL, _ = s3storage.Put(ctx, s3Path, "image/jpeg", content)
 
 			// Removing the file created on /tmp directory
 			os.Remove(tmpImageName)

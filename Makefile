@@ -1,5 +1,5 @@
 build:
-	go build ./cmd/courier
+	go build ./cmd/mailroom
 
 test:
 	go test -p=1 -coverprofile=coverage.text -covermode=atomic ./...
