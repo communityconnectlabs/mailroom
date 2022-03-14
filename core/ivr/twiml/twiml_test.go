@@ -9,6 +9,7 @@ import (
 	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
 	"net/http"
 	"net/url"
 	"strings"
@@ -103,7 +104,7 @@ func TestResponseForSprint(t *testing.T) {
 }
 
 func TestResumeForRequest(t *testing.T) {
-	ctx, db, _ := testsuite.Reset()
+	ctx, _, db, _ := testsuite.Reset()
 
 	tClient, err := getTestClient(ctx, db, t)
 	assert.NoError(t, err)
@@ -130,7 +131,7 @@ func TestResumeForRequest(t *testing.T) {
 }
 
 func TestValidateRequestSignature(t *testing.T) {
-	ctx, db, _ := testsuite.Reset()
+	ctx, _, db, _ := testsuite.Reset()
 	defer testsuite.Reset()
 
 	tClient, err := getTestClient(ctx, db, t)
@@ -163,10 +164,10 @@ func getTestRequest(reqBody string, reqPath string) (*http.Request, error) {
 }
 
 func getTestClient(ctx context.Context, db *sqlx.DB, t *testing.T) (ivr.Client, error) {
-	db.MustExec(`UPDATE channels_channel SET config = '{"account_sid": "twillio", "auth_token": "twillio"}' WHERE id = $1`, models.TwilioChannelID)
-	oa, err := models.GetOrgAssets(ctx, db, models.Org1)
+	db.MustExec(`UPDATE channels_channel SET config = '{"account_sid": "twillio", "auth_token": "twillio"}' WHERE id = $1`, testdata.TwilioChannel.ID)
+	oa, err := models.GetOrgAssets(ctx, db, testdata.Org1.ID)
 	assert.NoError(t, err)
-	channel := oa.ChannelByUUID(models.TwilioChannelUUID)
+	channel := oa.ChannelByUUID(testdata.TwilioChannel.UUID)
 	assert.NotNil(t, channel)
 
 	return NewClientFromChannel(http.DefaultClient, channel)

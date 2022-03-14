@@ -1,8 +1,8 @@
 package testdata
 
 import (
-	"github.com/nyaruka/gocommon/uuids"
 	"github.com/greatnonprofits-nfp/goflow/assets"
+	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/mailroom/core/models"
 )
 
@@ -59,9 +59,9 @@ var CampaignFlow = &Flow{10009, "3a92a964-3a8d-420b-9206-2cd9d884ac30"}
 
 var CreatedOnField = &Field{3, "fd18a69d-7514-4b76-9fad-072641995e17"}
 var LastSeenOnField = &Field{5, "660ebe03-b717-4a80-aebf-9b7c718266e1"}
-var GenderField = &Field{6, "3a5891e4-756e-4dc9-8e12-b7a766168824"}
-var AgeField = &Field{7, "903f51da-2717-47c7-a0d3-f2f32877013d"}
-var JoinedField = &Field{8, "d83aae24-4bbf-49d0-ab85-6bfd201eac6d"}
+var GenderField = &Field{8, "3a5891e4-756e-4dc9-8e12-b7a766168824"}
+var AgeField = &Field{9, "903f51da-2717-47c7-a0d3-f2f32877013d"}
+var JoinedField = &Field{10, "d83aae24-4bbf-49d0-ab85-6bfd201eac6d"}
 
 var AllContactsGroup = &Group{1, "d1ee73f0-bdb5-47ce-99dd-0c95d4ebf008"}
 var BlockedContactsGroup = &Group{2, "9295ebab-5c2d-4eb1-86f9-7c15ed2f3219"}

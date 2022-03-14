@@ -65,14 +65,11 @@ func TestWithHTTPLogs(t *testing.T) {
 }
 
 func TestRequireUserToken(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
-	testsuite.ResetDB()
+	ctx, rt, db, _ := testsuite.Reset()
 
 	handler := getMockHandler()
 	userId := int64(2)
 	requestHandler := web.RequireUserToken(handler)
-	server := &web.Server{DB: db, CTX: ctx}
 
 	req1, err := http.NewRequest("GET", "https://temba.io", nil)
 	assert.NoError(t, err)
@@ -80,12 +77,12 @@ func TestRequireUserToken(t *testing.T) {
 	req2, err := http.NewRequest("GET", "https://example.com", nil)
 	assert.NoError(t, err)
 
-	response, status, _ := requestHandler(ctx, server, req1)
+	response, status, _ := requestHandler(ctx, rt, req1)
 	_, ok := response.(error)
 	assert.True(t, ok)
 	assert.Equal(t, 401, status)
 
-	response, status, _ = requestHandler(ctx, server, req2)
+	response, status, _ = requestHandler(ctx, rt, req2)
 	_, ok = response.(error)
 	assert.True(t, ok)
 	assert.Equal(t, 401, status)
@@ -93,13 +90,13 @@ func TestRequireUserToken(t *testing.T) {
 	addUserToken(db, userId)
 	req2.Header.Set("authorization", "Token some-token")
 	assert.NoError(t, err)
-	response, status, _ = requestHandler(ctx, server, req2)
+	response, status, _ = requestHandler(ctx, rt, req2)
 	assert.Equal(t, 200, status)
 	assert.Equal(t, userId, response)
 }
 
 func getMockHandler() web.JSONHandler {
-	return func(ctx context.Context, s *web.Server, r *http.Request) (interface{}, int, error) {
+	return func(ctx context.Context, rt *runtime.Runtime, r *http.Request) (interface{}, int, error) {
 		fmt.Println(ctx.Value("user_id"))
 		return ctx.Value("user_id"), 200, nil
 	}

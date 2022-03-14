@@ -13,7 +13,7 @@ import (
 // InsertContactImport inserts a contact import
 func InsertContactImport(db *sqlx.DB, org *Org, validateCarrier bool) models.ContactImportID {
 	var importID models.ContactImportID
-	must(db.Get(&importID, `INSERT INTO contacts_contactimport(org_id, file, original_filename, headers, mappings, num_records, group_id, started_on, created_on, created_by_id, modified_on, modified_by_id, is_active)
+	must(db.Get(&importID, `INSERT INTO contacts_contactimport(org_id, file, original_filename, headers, mappings, num_records, group_id, started_on, created_on, created_by_id, modified_on, modified_by_id, is_active, num_duplicates, validate_carrier)
 					          VALUES($1, 'contact_imports/1234.xlsx', 'contacts.xlsx', '{"Name", "URN:Tel"}', '{}', 30, NULL, $2, $2, 1, $2, 1, TRUE, 0, $3) RETURNING id`, org.ID, dates.Now(), validateCarrier,
 	))
 	return importID

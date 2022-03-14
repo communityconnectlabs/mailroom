@@ -349,27 +349,17 @@ CREATE TABLE IF NOT EXISTS flows_studioflowstart
 
 func TestStudioFlowStarts(t *testing.T) {
 	testsuite.Reset()
-	ctx := testsuite.CTX()
-	rp := testsuite.RP()
-	db := testsuite.DB()
+	ctx, rt, db, _ := testsuite.Reset()
 
 	mes := testsuite.NewMockElasticServer()
 	defer mes.Close()
-	es, err := elastic.NewClient(
-		elastic.SetURL(mes.URL()),
-		elastic.SetHealthcheck(false),
-		elastic.SetSniff(false),
-	)
-	require.NoError(t, err)
-
-	mr := &mailroom.Mailroom{Config: config.Mailroom, DB: db, RP: rp, ElasticClient: es}
 
 	startTask := map[string]interface{}{
 		"org_id":      1,
 		"start_id":    1,
 		"flow_sid":    "FW2932f221ca8741fb714ff97df7986172",
-		"channel_id":  models.TwilioChannelID,
-		"contact_ids": []int64{int64(models.GeorgeID)},
+		"channel_id":  testdata.TwilioChannel.ID,
+		"contact_ids": []int64{int64(testdata.George.ID)},
 	}
 	startTaskEncoded, _ := json.Marshal(startTask)
 	task := &queue.Task{
@@ -380,11 +370,11 @@ func TestStudioFlowStarts(t *testing.T) {
 	db.MustExecContext(ctx, createStudioFlowStartTable)
 	db.MustExecContext(ctx, `INSERT INTO flows_studioflowstart(org_id, uuid, status, metadata, flow_sid, channel_id, created_by_id, created_on, modified_on) 
 				            VALUES(1, $1, 'P', '{}', 'FW2932f221ca8741fb714ff97df7986172', $2, $3, now(), now());`,
-		uuids.New(), models.TwilioChannelID, int64(2),
+		uuids.New(), testdata.TwilioChannel.ID, int64(2),
 	)
 
 	requestSender = &mockHttpClient{}
-	err = handleStudioFlowStart(ctx, mr, task)
+	err := handleStudioFlowStart(ctx, rt, task)
 	assert.NoError(t, err)
 	requestSender = http.DefaultClient
 }
