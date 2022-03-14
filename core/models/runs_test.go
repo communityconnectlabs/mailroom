@@ -81,8 +81,7 @@ func TestNewEmptyRun(t *testing.T) {
 	flowID := testdata.Favorites.ID
 	orgID := testdata.Org1.ID
 	runSQL := `SELECT COUNT(*) FROM flows_flowrun WHERE contact_id = $1 AND flow_id = $2 AND org_id = $3`
-
-	// args := []interface{}{contactID, flowID, orgID}
+	
 	testsuite.AssertQuery(t, db, runSQL, contactID, flowID, orgID).Returns(0)
 
 	err := models.NewEmptyRun(ctx, db, contactID, flowID, orgID)
