@@ -4,6 +4,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -13,18 +14,17 @@ func TestLookupOrgByUUIDAndToken(t *testing.T) {
 	apiToken := "some-token-for-cathy"
 	userId := int64(2)
 	permission := "Administrators"
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, _, db, _ := testsuite.Get()
 	defer testsuite.ResetDB()
 	addUserToken(db, userId, apiToken)
 
-	orgRef, err := models.LookupOrgByUUIDAndToken(ctx, db, models.Org2UUID, "", apiToken)
+	orgRef, err := models.LookupOrgByUUIDAndToken(ctx, db, testdata.Org2.UUID, "", apiToken)
 	assert.NoError(t, err)
 	assert.Nil(t, orgRef)
 
-	orgRef, err = models.LookupOrgByUUIDAndToken(ctx, db, models.Org2UUID, permission, apiToken)
+	orgRef, err = models.LookupOrgByUUIDAndToken(ctx, db, testdata.Org2.UUID, permission, apiToken)
 	assert.NoError(t, err)
-	assert.Equal(t,  models.Org2UUID, orgRef.UUID)
+	assert.Equal(t,  testdata.Org2.UUID, orgRef.UUID)
 }
 
 func addUserToken(db *sqlx.DB, userId int64, apiToken string) {

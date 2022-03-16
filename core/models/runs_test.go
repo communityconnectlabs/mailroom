@@ -14,16 +14,17 @@ import (
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestNewSession(t *testing.T) {
 	testsuite.Reset()
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, _, db, _ := testsuite.Get()
 	rp := testsuite.RP()
 	txCTX, cancel := context.WithCancel(ctx)
+	st := testsuite.SessionStorage()
 
 	tx, err := db.BeginTxx(txCTX, nil)
 	assert.NoError(t, err)
@@ -33,13 +34,13 @@ func TestNewSession(t *testing.T) {
 		testsuite.Reset()
 	}()
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, models.Org1, models.RefreshOrg)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshOrg)
 	assert.NoError(t, err)
 
 	assetJSON, err := jsonx.Marshal(json.RawMessage(getSessionAssetsJSON()))
 	assert.NoError(t, err)
 
-	fs, sprint, err := createSession(assetJSON, models.FavoritesFlowUUID)
+	fs, sprint, err := createSession(assetJSON, testdata.Favorites.UUID)
 	assert.NoError(t, err)
 
 	ss := []flows.Session{fs}
@@ -51,7 +52,7 @@ func TestNewSession(t *testing.T) {
 	assert.Equal(t, fs.UUID(), session.UUID())
 	assert.Equal(t, models.SessionID(0), session.ID())
 
-	sessions, err := models.WriteSessions(ctx, tx, rp, oa, ss, sprints, nil)
+	sessions, err := models.WriteSessions(ctx, tx, rp, st, oa, ss, sprints, nil)
 	assert.NoError(t, err)
 
 	session = sessions[0]
@@ -62,32 +63,31 @@ func TestNewSession(t *testing.T) {
 	sa, err := test.CreateSessionAssets(assetJSON, "")
 	assert.NoError(t, err)
 
-	err = session.WriteUpdatedSession(ctx, tx, rp, oa, fs, sprint, nil)
+	err = session.WriteUpdatedSession(ctx, tx, rp, st, oa, fs, sprint, nil)
 	assert.EqualError(t, err, "missing seen runs, cannot update session")
 
 	var env envs.Environment
 	fs, err = session.FlowSession(sa, env)
 	assert.NoError(t, err)
 
-	err = session.WriteUpdatedSession(ctx, tx, rp, oa, fs, sprint, nil)
+	err = session.WriteUpdatedSession(ctx, tx, rp, st, oa, fs, sprint, nil)
 	assert.NoError(t, err)
 }
 
 func TestNewEmptyRun(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
-	contactID := flows.ContactID(models.CathyID)
-	flowID := models.FavoritesFlowID
-	orgID := models.Org1
+	ctx, _, db, _ := testsuite.Get()
+	testsuite.Reset()
+	contactID := flows.ContactID(testdata.Cathy.ID)
+	flowID := testdata.Favorites.ID
+	orgID := testdata.Org1.ID
 	runSQL := `SELECT COUNT(*) FROM flows_flowrun WHERE contact_id = $1 AND flow_id = $2 AND org_id = $3`
-
-	args := []interface{}{contactID, flowID, orgID}
-	testsuite.AssertQueryCount(t, db, runSQL, args, 0, "mismatch in expected count for query: %s", runSQL)
+	
+	testsuite.AssertQuery(t, db, runSQL, contactID, flowID, orgID).Returns(0)
 
 	err := models.NewEmptyRun(ctx, db, contactID, flowID, orgID)
 	assert.NoError(t, err)
 
-	testsuite.AssertQueryCount(t, db, runSQL, args, 1, "mismatch in expected count for query: %s", runSQL)
+	testsuite.AssertQuery(t, db, runSQL, contactID, flowID, orgID).Returns(1)
 }
 
 func getSessionAssetsJSON() string {
@@ -252,8 +252,8 @@ func createSession(assetsJSON json.RawMessage, flowUUID assets.FlowUUID) (flows.
 	fields := map[string]*flows.Value{}
 	contact, err := flows.NewContact(
 		sa,
-		models.BobUUID,
-		flows.ContactID(models.BobID),
+		testdata.Bob.UUID,
+		flows.ContactID(testdata.Bob.ID),
 		"Bob",
 		envs.NilLanguage,
 		flows.ContactStatusActive,
@@ -263,6 +263,7 @@ func createSession(assetsJSON json.RawMessage, flowUUID assets.FlowUUID) (flows.
 		urnList,
 		nil,
 		fields,
+		nil,
 		nil,
 		)
 	trigger := triggers.NewBuilder(env, flow.Reference(), contact).Manual().Build()

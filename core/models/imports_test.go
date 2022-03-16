@@ -66,7 +66,7 @@ func TestContactImports(t *testing.T) {
 	defer uuids.SetGenerator(uuids.DefaultGenerator)
 
 	for i, tc := range tcs {
-		importID := testdata.InsertContactImport(db, testdata.Org1)
+		importID := testdata.InsertContactImport(db, testdata.Org1, false)
 		batchID := testdata.InsertContactImportBatch(db, importID, tc.Specs)
 
 		batch, err := models.LoadContactImportBatch(ctx, db, batchID)
@@ -147,7 +147,7 @@ func TestContactImports(t *testing.T) {
 func TestContactImportBatch(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
 
-	importID := testdata.InsertContactImport(db, testdata.Org1)
+	importID := testdata.InsertContactImport(db, testdata.Org1, false)
 	batchID := testdata.InsertContactImportBatch(db, importID, []byte(`[
 		{"name": "Norbert", "language": "eng", "urns": ["tel:+16055740001"]},
 		{"name": "Leah", "urns": ["tel:+16055740002"]}
@@ -234,12 +234,11 @@ func TestValidateURNCarrierWithError(t *testing.T) {
 }
 
 func TestImportWithCarrierValidation(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, _, db, _ := testsuite.Get()
 
-	importID := testdata.InsertContactImport(t, db, models.Org1, true)
+	importID := testdata.InsertContactImport(db, testdata.Org1, true)
 	// 23480395295011 is an invalid number and will not be captured in the final result
-	batchID := testdata.InsertContactImportBatch(t, db, importID, []byte(`[
+	batchID := testdata.InsertContactImportBatch(db, importID, []byte(`[
 		{"name": "Norbert", "language": "eng", "urns": ["tel:+16055740001"]},
 		{"name": "Leah", "urns": ["tel:+16055740002"]},
 		{"name": "Jemila", "urns": ["tel:+23480395295011"]},
@@ -251,7 +250,7 @@ func TestImportWithCarrierValidation(t *testing.T) {
 
 
 	models.MockFnInitLookup()
-	err = batch.Import(ctx, db, models.Org1)
+	err = batch.Import(ctx, db, testdata.Org1.ID)
 	require.NoError(t, err)
 
 	carrierGroups := map[models.CarrierType][]models.ContactID{}

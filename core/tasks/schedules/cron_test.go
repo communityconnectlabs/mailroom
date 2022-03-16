@@ -28,8 +28,8 @@ func TestCheckSchedules(t *testing.T) {
 	var b1 models.BroadcastID
 	err = db.Get(
 		&b1,
-		`INSERT INTO msgs_broadcast(status, text, base_language, is_active, created_on, modified_on, send_all, created_by_id, modified_by_id, org_id, schedule_id)
-			VALUES('P', hstore(ARRAY['eng','Test message', 'fra', 'Un Message']), 'eng', TRUE, NOW(), NOW(), TRUE, 1, 1, $1, $2) RETURNING id`,
+		`INSERT INTO msgs_broadcast(status, text, base_language, created_on, modified_on, send_all, created_by_id, modified_by_id, org_id, schedule_id)
+			VALUES('P', hstore(ARRAY['eng','Test message', 'fra', 'Un Message']), 'eng', NOW(), NOW(), TRUE, 1, 1, $1, $2) RETURNING id`,
 		testdata.Org1.ID, s1,
 	)
 	assert.NoError(t, err)

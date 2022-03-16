@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nyaruka/gocommon/urns"
 	"github.com/greatnonprofits-nfp/goflow/assets"
 	"github.com/greatnonprofits-nfp/goflow/envs"
 	"github.com/greatnonprofits-nfp/goflow/flows"
 	"github.com/greatnonprofits-nfp/goflow/flows/events"
+	"github.com/nyaruka/gocommon/urns"
 	_ "github.com/nyaruka/mailroom/core/handlers"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/core/queue"
@@ -130,8 +130,8 @@ func TestBroadcastTask(t *testing.T) {
 	// insert a broadcast so we can check it is being set to sent
 	var legacyID models.BroadcastID
 	err = db.Get(&legacyID,
-		`INSERT INTO msgs_broadcast(status, text, base_language, is_active, created_on, modified_on, send_all, created_by_id, modified_by_id, org_id)
-							 VALUES('P', '"base"=>"hi @(PROPER(contact.name)) legacy"'::hstore, 'base', TRUE, NOW(), NOW(), FALSE, 1, 1, 1) RETURNING id`)
+		`INSERT INTO msgs_broadcast(status, text, base_language, created_on, modified_on, send_all, created_by_id, modified_by_id, org_id)
+							 VALUES('P', '"base"=>"hi @(PROPER(contact.name)) legacy"'::hstore, 'base', NOW(), NOW(), FALSE, 1, 1, 1) RETURNING id`)
 	require.NoError(t, err)
 
 	ticket := testdata.InsertOpenTicket(db, testdata.Org1, testdata.Cathy, testdata.Mailgun, "Problem", "", "", nil)

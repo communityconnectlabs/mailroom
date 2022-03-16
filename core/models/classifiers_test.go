@@ -45,21 +45,17 @@ func TestClassifiers(t *testing.T) {
 }
 
 func TestClassifier_AsService(t *testing.T) {
-	ctx := testsuite.CTX()
-	db := testsuite.DB()
+	ctx, _, db, _ := testsuite.Get()
 
-	classifiers, err := loadClassifiers(ctx, db, 1)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshClassifiers)
+	require.NoError(t, err)
+
+	classifiers, err := oa.Classifiers()
 	assert.NoError(t, err)
 	classifier1 := classifiers[0]
 	classifier := &flows.Classifier{Classifier: classifier1}
 
-	c := &Classifier{}
-	cc := &c.c
-	cc.Type = "Fake"
-	_, err = c.AsService(classifier)
-	assert.EqualError(t, err, "unknown classifier type 'Fake' for classifier: ")
-
-	c = classifier1.(*Classifier)
+	c := classifier1.(*models.Classifier)
 	classifierService, err := c.AsService(classifier)
 	assert.NoError(t, err)
 	_, ok := classifierService.(flows.ClassificationService)
