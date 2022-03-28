@@ -628,3 +628,35 @@ func TestUpdateContactURNs(t *testing.T) {
 
 	testsuite.AssertQuery(t, db, `SELECT count(*) FROM contacts_contacturn`).Returns(numInitialURNs + 3)
 }
+
+func TestURNForID(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, 1, models.RefreshChannels)
+	require.NoError(t, err)
+
+	urn, err := models.URNForID(ctx, db, oa, testdata.Bob.URNID)
+	require.NoError(t, err)
+
+	expected := urns.URN(fmt.Sprintf("%s?id=%d&priority=1000", testdata.Bob.URN, testdata.Bob.ID))
+	assert.Equal(t, expected, urn)
+}
+
+func TestGetOrCreateURN(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, 1, models.RefreshChannels)
+	require.NoError(t, err)
+
+	urn, err := models.GetOrCreateURN(ctx, db, oa, testdata.Bob.ID, testdata.Bob.URN)
+	expected := urns.URN(fmt.Sprintf("%s?id=%d&priority=1000", testdata.Bob.URN, testdata.Bob.ID))
+	assert.Equal(t, expected, urn)
+}
+
+func TestAddContactToOptOutedGroups(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+	defer testsuite.Reset()
+
+	err := models.AddContactToOptOutedGroups(ctx, db, testdata.Org1.ID, testdata.Cathy.ID)
+	require.NoError(t, err)
+}

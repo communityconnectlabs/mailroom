@@ -89,3 +89,34 @@ func TestChannels(t *testing.T) {
 		assert.Equal(t, tc.Parent, channel.Parent())
 	}
 }
+
+func TestConfigValue(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+
+	defer testsuite.Reset()
+
+	// add some tel specific config to channel 2
+	db.MustExec(`UPDATE channels_channel SET config = '{"matching_prefixes": ["250", "251"], "allow_international": true, "delay": 1.5, "user_value": "vonage"}' WHERE id = $1`, testdata.VonageChannel.ID)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, 1, models.RefreshChannels)
+	require.NoError(t, err)
+
+	channel := oa.ChannelByID(testdata.VonageChannel.ID)
+
+	assert.Equal(t, "default", channel.ConfigValue("not_found", "default"))
+	assert.Equal(t, "true", channel.ConfigValue("allow_international", "false"))
+	assert.Equal(t, "2", channel.ConfigValue("delay", "0"))
+	assert.Equal(t, "vonage", channel.ConfigValue("user_value", ""))
+}
+
+func TestOrgIDForChannelUUID(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+
+	notAChannelUUID := testdata.Bob.UUID
+	orgID, err := models.OrgIDForChannelUUID(ctx, db, assets.ChannelUUID(notAChannelUUID))
+	require.Errorf(t, err, "no channel found with uuid: %s", notAChannelUUID)
+	assert.Equal(t, orgID, models.NilOrgID)
+
+	orgID, err = models.OrgIDForChannelUUID(ctx, db, testdata.VonageChannel.UUID)
+	require.NoError(t, err)
+	assert.Equal(t, orgID, testdata.Org1.ID)
+}
