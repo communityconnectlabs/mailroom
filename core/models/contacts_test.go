@@ -647,9 +647,9 @@ func TestGetOrCreateURN(t *testing.T) {
 
 	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, 1, models.RefreshChannels)
 	require.NoError(t, err)
-
 	urn, err := models.GetOrCreateURN(ctx, db, oa, testdata.Bob.ID, testdata.Bob.URN)
-	expected := urns.URN(fmt.Sprintf("%s?id=%d&priority=1000", testdata.Bob.URN, testdata.Bob.ID))
+	expected, err := models.URNForID(ctx, db, oa, testdata.Bob.URNID)
+	require.NoError(t, err)
 	assert.Equal(t, expected, urn)
 }
 
@@ -657,6 +657,22 @@ func TestAddContactToOptOutedGroups(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
 	defer testsuite.Reset()
 
-	err := models.AddContactToOptOutedGroups(ctx, db, testdata.Org1.ID, testdata.Cathy.ID)
+	contactGroupUUIDs := []assets.GroupUUID{testdata.DoctorsGroup.UUID, testdata.TestersGroup.UUID}
+	extras := map[string]interface{}{"opted_out_groups": contactGroupUUIDs}
+
+	e := models.NewChannelEvent("stop_conversation", testdata.Org1.ID, testdata.TwilioChannel.ID, testdata.Cathy.ID, testdata.Cathy.URNID, extras, false)
+	err := e.Insert(ctx, db)
 	require.NoError(t, err)
+
+	testsuite.AssertQuery(t, db, countAddedToGroup, testdata.Cathy.ID, testdata.TestersGroup.ID).Returns(0)
+
+	err = models.AddContactToOptOutedGroups(ctx, db, testdata.Org1.ID, testdata.Cathy.ID)
+	require.NoError(t, err)
+
+	testsuite.AssertQuery(t, db, countAddedToGroup, testdata.Cathy.ID, testdata.TestersGroup.ID).Returns(1)
 }
+
+const countAddedToGroup = `
+SELECT COUNT(*)
+	FROM contacts_contactgroup_contacts 
+WHERE contact_id = $1 AND contactgroup_id = $2`
