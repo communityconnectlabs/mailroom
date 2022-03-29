@@ -672,6 +672,36 @@ func TestAddContactToOptOutedGroups(t *testing.T) {
 	testsuite.AssertQuery(t, db, countAddedToGroup, testdata.Cathy.ID, testdata.TestersGroup.ID).Returns(1)
 }
 
+func TestUpdateContactOptOutChannelEvent(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+	defer testsuite.Reset()
+
+	contactGroupUUIDs := []assets.GroupUUID{testdata.TestersGroup.UUID}
+	timestamp , _ := time.Now().UTC().MarshalText()
+	optOutMsg := `You have been removed from all messaging subscriptions`
+	extras := map[string]interface{}{
+		"opted_out_groups": contactGroupUUIDs,
+		"opt_out_message": optOutMsg,
+		"opt_out_datetime": string(timestamp),
+	}
+
+	e := models.NewChannelEvent("stop_conversation", testdata.Org1.ID, testdata.TwilioChannel.ID, testdata.Alexandria.ID, testdata.Alexandria.URNID, extras, false)
+	err := e.Insert(ctx, db)
+	require.NoError(t, err)
+
+	err = models.UpdateContactOptOutChannelEvent(ctx, db, testdata.Org1.ID, testdata.Alexandria.ID)
+	require.NoError(t, err)
+
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshFields)
+	require.NoError(t, err)
+
+	optOutMsgUUID := oa.FieldByKey("opt_out_message").UUID()
+	sqlQuery := fmt.Sprintf("SELECT  fields->'%s'->'text' FROM contacts_contact WHERE id = $1", optOutMsgUUID)
+
+	expected := []byte(fmt.Sprintf("\"%s\"", optOutMsg))
+	testsuite.AssertQuery(t, db, sqlQuery, testdata.Alexandria.ID).Returns(expected)
+}
+
 const countAddedToGroup = `
 SELECT COUNT(*)
 	FROM contacts_contactgroup_contacts 
