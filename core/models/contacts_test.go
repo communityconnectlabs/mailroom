@@ -628,3 +628,81 @@ func TestUpdateContactURNs(t *testing.T) {
 
 	testsuite.AssertQuery(t, db, `SELECT count(*) FROM contacts_contacturn`).Returns(numInitialURNs + 3)
 }
+
+func TestURNForID(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, 1, models.RefreshChannels)
+	require.NoError(t, err)
+
+	urn, err := models.URNForID(ctx, db, oa, testdata.Bob.URNID)
+	require.NoError(t, err)
+
+	expected := urns.URN(fmt.Sprintf("%s?id=%d&priority=1000", testdata.Bob.URN, testdata.Bob.ID))
+	assert.Equal(t, expected, urn)
+}
+
+func TestGetOrCreateURN(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, 1, models.RefreshChannels)
+	require.NoError(t, err)
+	urn, err := models.GetOrCreateURN(ctx, db, oa, testdata.Bob.ID, testdata.Bob.URN)
+	expected, err := models.URNForID(ctx, db, oa, testdata.Bob.URNID)
+	require.NoError(t, err)
+	assert.Equal(t, expected, urn)
+}
+
+func TestAddContactToOptOutedGroups(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+	defer testsuite.Reset()
+
+	contactGroupUUIDs := []assets.GroupUUID{testdata.DoctorsGroup.UUID, testdata.TestersGroup.UUID}
+	extras := map[string]interface{}{"opted_out_groups": contactGroupUUIDs}
+
+	e := models.NewChannelEvent("stop_conversation", testdata.Org1.ID, testdata.TwilioChannel.ID, testdata.Cathy.ID, testdata.Cathy.URNID, extras, false)
+	err := e.Insert(ctx, db)
+	require.NoError(t, err)
+
+	testsuite.AssertQuery(t, db, countAddedToGroup, testdata.Cathy.ID, testdata.TestersGroup.ID).Returns(0)
+
+	err = models.AddContactToOptOutedGroups(ctx, db, testdata.Org1.ID, testdata.Cathy.ID)
+	require.NoError(t, err)
+
+	testsuite.AssertQuery(t, db, countAddedToGroup, testdata.Cathy.ID, testdata.TestersGroup.ID).Returns(1)
+}
+
+func TestUpdateContactOptOutChannelEvent(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+	defer testsuite.Reset()
+
+	contactGroupUUIDs := []assets.GroupUUID{testdata.TestersGroup.UUID}
+	timestamp , _ := time.Now().UTC().MarshalText()
+	optOutMsg := `You have been removed from all messaging subscriptions`
+	extras := map[string]interface{}{
+		"opted_out_groups": contactGroupUUIDs,
+		"opt_out_message": optOutMsg,
+		"opt_out_datetime": string(timestamp),
+	}
+
+	e := models.NewChannelEvent("stop_conversation", testdata.Org1.ID, testdata.TwilioChannel.ID, testdata.Alexandria.ID, testdata.Alexandria.URNID, extras, false)
+	err := e.Insert(ctx, db)
+	require.NoError(t, err)
+
+	err = models.UpdateContactOptOutChannelEvent(ctx, db, testdata.Org1.ID, testdata.Alexandria.ID)
+	require.NoError(t, err)
+
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshFields)
+	require.NoError(t, err)
+
+	optOutMsgUUID := oa.FieldByKey("opt_out_message").UUID()
+	sqlQuery := fmt.Sprintf("SELECT  fields->'%s'->'text' FROM contacts_contact WHERE id = $1", optOutMsgUUID)
+
+	expected := []byte(fmt.Sprintf("\"%s\"", optOutMsg))
+	testsuite.AssertQuery(t, db, sqlQuery, testdata.Alexandria.ID).Returns(expected)
+}
+
+const countAddedToGroup = `
+SELECT COUNT(*)
+	FROM contacts_contactgroup_contacts 
+WHERE contact_id = $1 AND contactgroup_id = $2`
