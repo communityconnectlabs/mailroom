@@ -46,7 +46,8 @@ For writing of message attachments, Mailroom needs access to an S3 bucket, you c
 - `MAILROOM_S3_MEDIA_BUCKET`: The name of your S3 bucket (ex: `dl-mailroom`)
 - `MAILROOM_S3_MEDIA_PREFIX`: The prefix to use for filenames of attachments added to your bucket (ex: `attachments`)
 - `MAILROOM_AWS_ACCESS_KEY_ID`: The AWS access key id used to authenticate to AWS
-- `MAILROOM_AWS_SECRET_ACCESS_KEY` The AWS secret access key used to authenticate to AWS
+- `MAILROOM_AWS_SECRET_ACCESS_KEY`: The AWS secret access key used to authenticate to AWS
+- `MAILROOM_S3_PUBLIC_ACCESS_ENDPOINT`: The URL than can be used to get access to private storage files
 
 While still in beta, Mailroom will move to writing session data to S3 in 6.6, you can configure those buckets using:
 

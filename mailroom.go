@@ -170,8 +170,8 @@ func (mr *Mailroom) Start() error {
 		if err != nil {
 			return err
 		}
-		mr.rt.MediaStorage = storage.NewS3(s3Client, mr.rt.Config.S3MediaBucket, 32)
-		mr.rt.SessionStorage = storage.NewS3(s3Client, mr.rt.Config.S3SessionBucket, 32)
+		mr.rt.MediaStorage = storage.NewPrivateS3(s3Client, mr.rt.Config.S3MediaBucket, 32, c.S3PublicAccessEndpoint)
+		mr.rt.SessionStorage = storage.NewPrivateS3(s3Client, mr.rt.Config.S3SessionBucket, 32, c.S3PublicAccessEndpoint)
 	} else {
 		mr.rt.MediaStorage = storage.NewFS("_storage")
 		mr.rt.SessionStorage = storage.NewFS("_storage")

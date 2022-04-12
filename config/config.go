@@ -47,6 +47,8 @@ type Config struct {
 	Domain           string `help:"the domain that mailroom is listening on"`
 	AttachmentDomain string `help:"the domain that will be used for relative attachment"`
 
+	S3PublicAccessEndpoint string `help:"the public endpoint that can be used to get the private files"`
+
 	S3Endpoint string `help:"the S3 endpoint we will write attachments to"`
 	S3Region   string `help:"the S3 region we will write attachments to"`
 
@@ -96,6 +98,8 @@ func NewMailroomConfig() *Config {
 		DisallowedNetworks:     `127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fe80::/10`,
 		MaxStepsPerSprint:      100,
 		MaxValueLength:         640,
+
+		S3PublicAccessEndpoint: "http://localhost:8000/storage",
 
 		S3Endpoint:         "https://s3.amazonaws.com",
 		S3Region:           "us-east-1",

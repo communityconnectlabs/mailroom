@@ -1,5 +1,7 @@
 module github.com/nyaruka/mailroom
 
+replace github.com/nyaruka/gocommon => github.com/greatnonprofits-nfp/gocommon v1.12.2
+
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/apex/log v1.1.4
@@ -16,7 +18,6 @@ require (
 	github.com/gorilla/schema v1.1.0
 	github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220215200155-e1cc13065b93
 	github.com/jmoiron/sqlx v1.2.0
-	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lib/pq v1.9.0
 	github.com/mattn/go-sqlite3 v1.10.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
