@@ -292,6 +292,8 @@ github.com/gostaticanalysis/comment v1.3.0/go.mod h1:xMicKDx7XRXYdVwY9f9wQpDJVnq
 github.com/gostaticanalysis/comment v1.4.1/go.mod h1:ih6ZxzTHLdadaiSnF5WY3dxUoXfXAlTaRzuaNDlSado=
 github.com/gostaticanalysis/forcetypeassert v0.0.0-20200621232751-01d4955beaa5/go.mod h1:qZEedyP/sY1lTGV1uJ3VhWZ2mqag3IkWsDHVbplHXak=
 github.com/gostaticanalysis/nilerr v0.1.1/go.mod h1:wZYb6YI5YAxxq0i1+VJbY0s2YONW0HU0GPE3+5PWN4A=
+github.com/greatnonprofits-nfp/gocommon v1.12.2 h1:DI2aymXoL0jnJTCUZ4lom6dU9RkHQA3OathGVwHM6I4=
+github.com/greatnonprofits-nfp/gocommon v1.12.2/go.mod h1:Jn7UIE8zwIr4JaviDf4PZrrQlN8r6QGVhOuaF/JoKus=
 github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220215200155-e1cc13065b93 h1:jjkzMSkLfdDe4bWcuCRyTVoPpEs35WZ6hprD4jOOGx0=
 github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220215200155-e1cc13065b93/go.mod h1:F9+M4kdefLwWR5HM6/NBOk4l40aV2W0ipccX+Q2a9RI=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
@@ -465,8 +467,6 @@ github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
 github.com/nyaruka/ezconf v0.2.1 h1:TDXWoqjqYya1uhou1mAJZg7rgFYL98EB0Tb3+BWtUh0=
 github.com/nyaruka/ezconf v0.2.1/go.mod h1:ey182kYkw2MIi4XiWe1FR/mzI33WCmTWuceDYYxgnQw=
-github.com/nyaruka/gocommon v1.12.0 h1:k2Z++bumzyJxK9lTCBcpVBfauZmkgMj/bkXeO0eja1A=
-github.com/nyaruka/gocommon v1.12.0/go.mod h1:Jn7UIE8zwIr4JaviDf4PZrrQlN8r6QGVhOuaF/JoKus=
 github.com/nyaruka/librato v1.0.0 h1:Vznj9WCeC1yZXbBYyYp40KnbmXLbEkjKmHesV/v2SR0=
 github.com/nyaruka/librato v1.0.0/go.mod h1:pkRNLFhFurOz0QqBz6/DuTFhHHxAubWxs4Jx+J7yUgg=
 github.com/nyaruka/logrus_sentry v0.8.2-0.20190129182604-c2962b80ba7d h1:hyp9u36KIwbTCo2JAJ+TuJcJBc+UZzEig7RI/S5Dvkc=
