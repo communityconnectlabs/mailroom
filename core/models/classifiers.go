@@ -3,6 +3,8 @@ package models
 import (
 	"context"
 	"database/sql/driver"
+	"github.com/greatnonprofits-nfp/goflow/services/classification/dialogflowcl"
+	"github.com/nyaruka/gocommon/jsonx"
 	"time"
 
 	"github.com/greatnonprofits-nfp/goflow/assets"
@@ -31,6 +33,7 @@ const (
 	ClassifierTypeWit    = "wit"
 	ClassifierTypeLuis   = "luis"
 	ClassifierTypeBothub = "bothub"
+	ClassifierTypeDialogflow = "dialogflow"
 )
 
 // classifier config key constants
@@ -46,6 +49,9 @@ const (
 	LuisConfigVersion     = "version"
 	LuisConfigEndpointURL = "endpoint_url"
 	LuisConfigPrimaryKey  = "primary_key"
+
+	// Dialogflow config options
+	DialogflowProjectId = "project_id"
 )
 
 // Register a classification service factory with the engine
@@ -89,6 +95,8 @@ func (c *Classifier) Intents() []string { return c.c.intentNames }
 // Type returns the type of this classifier
 func (c *Classifier) Type() string { return c.c.Type }
 
+func (c *Classifier) Config() map[string]string { return c.c.Config }
+
 // AsService builds the corresponding ClassificationService for the passed in Classifier
 func (c *Classifier) AsService(classifier *flows.Classifier) (flows.ClassificationService, error) {
 	httpClient, httpRetries, httpAccess := goflow.HTTP(config.Mailroom)
@@ -117,6 +125,14 @@ func (c *Classifier) AsService(classifier *flows.Classifier) (flows.Classificati
 			return nil, errors.Errorf("missing %s for Bothub classifier: %s", BothubConfigAccessToken, c.UUID())
 		}
 		return bothub.NewService(httpClient, httpRetries, classifier, accessToken), nil
+
+	case ClassifierTypeDialogflow:
+		configData, err := jsonx.Marshal(c.c.Config)
+		projectID := c.c.Config[DialogflowProjectId]
+		if err != nil {
+			return nil, err
+		}
+		return dialogflowcl.NewService(httpClient, httpRetries, classifier, configData, projectID), nil
 
 	default:
 		return nil, errors.Errorf("unknown classifier type '%s' for classifier: %s", c.Type(), c.UUID())
