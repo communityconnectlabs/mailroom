@@ -1142,6 +1142,58 @@ func MarkBroadcastSent(ctx context.Context, db Queryer, id BroadcastID) error {
 	return nil
 }
 
+var selectContactMessagesSQL = `
+SELECT 
+	id,
+	broadcast_id,
+	uuid,
+	text,
+	created_on,
+	direction,
+	status,
+	visibility,
+	msg_count,
+	error_count,
+	next_attempt,
+	external_id,
+	attachments,
+	metadata,
+	channel_id,
+	connection_id,
+	contact_id,
+	contact_urn_id,
+	response_to_id,
+	org_id,
+	topup_id
+FROM
+	msgs_msg
+WHERE
+	contact_id = $1 AND
+	created_on >= $2
+ORDER BY
+	id ASC`
+
+// SelectContactMessages loads the given messages for the passed in contact, created after the passed in time
+func SelectContactMessages(ctx context.Context, db Queryer, contactID int, after time.Time) ([]*Msg, error) {
+	rows, err := db.QueryxContext(ctx, selectContactMessagesSQL, contactID, after)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error querying msgs for contact: %d", contactID)
+	}
+	defer rows.Close()
+
+	msgs := make([]*Msg, 0)
+	for rows.Next() {
+		msg := &Msg{}
+		err = rows.StructScan(&msg.m)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error scanning msg row")
+		}
+		msgs = append(msgs, msg)
+	}
+
+	return msgs, nil
+}
+
 // NilID implementations
 
 // MarshalJSON marshals into JSON. 0 values will become null

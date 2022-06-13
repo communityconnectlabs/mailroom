@@ -15,6 +15,7 @@ require (
 	github.com/gofrs/uuid v3.3.0+incompatible
 	github.com/golang/protobuf v1.4.2
 	github.com/gomodule/redigo v2.0.0+incompatible
+	github.com/google/go-querystring v1.1.0
 	github.com/gorilla/schema v1.1.0
 	github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220215200155-e1cc13065b93
 	github.com/jmoiron/sqlx v1.2.0
