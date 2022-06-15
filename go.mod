@@ -3,6 +3,7 @@ module github.com/nyaruka/mailroom
 replace github.com/nyaruka/gocommon => github.com/greatnonprofits-nfp/gocommon v1.12.2
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/apex/log v1.1.4
 	github.com/aws/aws-sdk-go v1.36.30
