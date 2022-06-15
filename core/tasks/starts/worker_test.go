@@ -11,11 +11,11 @@ import (
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
+	"github.com/olivere/elastic/v7"
 )
 
 func TestStarts(t *testing.T) {
@@ -368,7 +368,7 @@ func TestStudioFlowStarts(t *testing.T) {
 		Task:  startTaskEncoded,
 	}
 	db.MustExecContext(ctx, createStudioFlowStartTable)
-	db.MustExecContext(ctx, `INSERT INTO flows_studioflowstart(org_id, uuid, status, metadata, flow_sid, channel_id, created_by_id, created_on, modified_on) 
+	db.MustExecContext(ctx, `INSERT INTO flows_studioflowstart(org_id, uuid, status, metadata, flow_sid, channel, created_by_id, created_on, modified_on) 
 				            VALUES(1, $1, 'P', '{}', 'FW2932f221ca8741fb714ff97df7986172', $2, $3, now(), now());`,
 		uuids.New(), testdata.TwilioChannel.ID, int64(2),
 	)
