@@ -3,6 +3,7 @@ module github.com/nyaruka/mailroom
 replace github.com/nyaruka/gocommon => github.com/greatnonprofits-nfp/gocommon v1.12.2
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/apex/log v1.1.4
 	github.com/aws/aws-sdk-go v1.36.30
@@ -15,8 +16,9 @@ require (
 	github.com/gofrs/uuid v3.3.0+incompatible
 	github.com/golang/protobuf v1.5.2
 	github.com/gomodule/redigo v2.0.0+incompatible
+	github.com/google/go-querystring v1.1.0
 	github.com/gorilla/schema v1.1.0
-	github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220606092623-08f9fd1b006c
+	github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220615194606-1f5ad4cefff3
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/lib/pq v1.9.0
 	github.com/mattn/go-sqlite3 v1.10.0 // indirect
