@@ -370,6 +370,8 @@ github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220606092623-08f9fd1b006c h1:D
 github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220606092623-08f9fd1b006c/go.mod h1:w2vCISQN/wNizHXnhsC3OHD8gmfDdn2g8tfdC3HMPW0=
 github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220615194606-1f5ad4cefff3 h1:WBs95yqyiAAmuL8GtUlO/Os7t4Orvv7o30nVVz8fK/A=
 github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220615194606-1f5ad4cefff3/go.mod h1:VSzA07XPMHxcaCl1nmFRh2LeWRp4IbxN24lpI3cnbqE=
+github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220628181340-67187c4adaa4 h1:x24/0SYK/lSm/Bd2Q68XVFCArWoUMiDw/AG4F45j36o=
+github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220628181340-67187c4adaa4/go.mod h1:VSzA07XPMHxcaCl1nmFRh2LeWRp4IbxN24lpI3cnbqE=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
 github.com/grpc-ecosystem/go-grpc-middleware v1.0.0/go.mod h1:FiyG127CGDf3tlThmgyCl78X/SZQqEOJBCDaAfeWzPs=
 github.com/grpc-ecosystem/go-grpc-middleware v1.0.1-0.20190118093823-f849b5445de4/go.mod h1:FiyG127CGDf3tlThmgyCl78X/SZQqEOJBCDaAfeWzPs=
