@@ -964,7 +964,7 @@ func NewHandleFlowImage(ctx context.Context, db *sqlx.DB, s3storage storage.Stor
 		var thumbnailURL string
 
 		generateThumbnail := stringInSlice(strings.ToLower(extension), []string{"jpg", "jpeg", "png"})
-		if generateThumbnail {
+		if generateThumbnail && img != nil {
 			thumb := resize.Thumbnail(50, 50, img, resize.NearestNeighbor)
 			tmpImageName := fmt.Sprintf("/tmp/%s.%s", flowImageUUID.String(), extension)
 			outThumbnail, _ := os.Create(tmpImageName)
