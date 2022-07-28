@@ -19,7 +19,6 @@ import (
 
 const (
 	typeAmazonConnect        = "amazonconnect"
-	configurationAuthToken   = "auth_token"
 	configurationEndpointURL = "endpoint_url"
 )
 
@@ -56,7 +55,7 @@ type service struct {
 
 // NewService creates a new Amazon Connect ticket service
 func NewService(rtCfg *config.Config, httpClient *http.Client, httpRetries *httpx.RetryConfig, ticketer *flows.Ticketer, config map[string]string) (models.TicketService, error) {
-	authToken := config[configurationAuthToken]
+	authToken := rtCfg.AmazonConnectAuthToken
 	endpointURL := config[configurationEndpointURL]
 
 	if authToken != "" && endpointURL != "" {
@@ -75,7 +74,7 @@ func NewService(rtCfg *config.Config, httpClient *http.Client, httpRetries *http
 	return nil, errors.New("missing auth_token or endpoint_url in amazon connect config")
 }
 
-// Open opens a ticket which for Twilioflex means create a Chat Channel associated to a Chat User
+// Open opens a ticket which for Amazon Connect means create a Chat Channel associated to a Chat User
 func (s *service) Open(session flows.Session, subject, body string, logHTTP flows.HTTPLogCallback) (*flows.Ticket, error) {
 	ticket := flows.OpenTicket(s.ticketer, subject, body)
 	contact := session.Contact()
@@ -107,9 +106,10 @@ func (s *service) Open(session flows.Session, subject, body string, logHTTP flow
 	m := &CreateChatMessageParams{
 		Messages:   messages,
 		Identifier: contactURN,
+		Ticket:     string(ticket.UUID()),
 	}
 
-	_, trace, err := s.client.CreateMessage(m)
+	ticketMessage, trace, err := s.client.CreateMessage(m)
 	if trace != nil {
 		logHTTP(flows.NewHTTPLog(trace, flows.HTTPStatusFromCode, s.redactor))
 	}
@@ -117,7 +117,7 @@ func (s *service) Open(session flows.Session, subject, body string, logHTTP flow
 		return nil, errors.Wrap(err, "error calling Twilio")
 	}
 
-	//ticket.SetExternalID(newFlexChannel.Sid) TODO set external ID after lambda function change
+	ticket.SetExternalID(ticketMessage.ContactID)
 	return ticket, nil
 }
 
@@ -133,6 +133,7 @@ func (s *service) Forward(ticket *models.Ticket, msgUUID flows.MsgUUID, text str
 				Timezone:  "UTC",
 			}},
 			Identifier: contactIdentity,
+			Ticket:     string(ticket.UUID()),
 		}
 		_, trace, err := s.client.CreateMessage(msg)
 		if trace != nil {
@@ -147,7 +148,8 @@ func (s *service) Forward(ticket *models.Ticket, msgUUID flows.MsgUUID, text str
 }
 
 func (s *service) Close(tickets []*models.Ticket, logHTTP flows.HTTPLogCallback) error {
-	return errors.New("Amazon Connect ticket type doesn't support closing on RapidPro side")
+	// TODO Raj will check if Amazon Connect supports ticket closing webhook
+	return nil
 }
 
 func (s *service) Reopen(tickets []*models.Ticket, logHTTP flows.HTTPLogCallback) error {

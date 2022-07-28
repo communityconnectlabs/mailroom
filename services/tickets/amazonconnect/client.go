@@ -96,8 +96,8 @@ func NewClient(httpClient *http.Client, httpRetries *httpx.RetryConfig, authToke
 }
 
 // CreateMessage create a message in chat channel.
-func (c *Client) CreateMessage(message *CreateChatMessageParams) (*CreateChatMessageParams, *httpx.Trace, error) {
-	response := &CreateChatMessageParams{}
+func (c *Client) CreateMessage(message *CreateChatMessageParams) (*CreateChatMessageResult, *httpx.Trace, error) {
+	response := &CreateChatMessageResult{}
 	data, err := query.Values(message)
 	if err != nil {
 		return nil, nil, err
@@ -110,14 +110,17 @@ func (c *Client) CreateMessage(message *CreateChatMessageParams) (*CreateChatMes
 	return response, trace, nil
 }
 
-// CompleteTask updates an Amazon Connect Task as completed.
-func (c *Client) CompleteTask(taskSid string) {
-	// implement me
-}
+// CompleteTask updates an Amazon Connect Task as completed
+func (c *Client) CompleteTask(taskSid string) {}
 
 type CreateChatMessageParams struct {
 	Messages   []ChatMessage `json:"messages,omitempty"`
 	Identifier string        `json:"identifier,omitempty"`
+	Ticket     string        `json:"ticket:omitempty"`
+}
+
+type CreateChatMessageResult struct {
+	ContactID string `json:"contact_id:omitempty"`
 }
 
 type ChatMessage struct {
