@@ -75,6 +75,8 @@ type Config struct {
 
 	UrlshHost  string `help:"the URLsh API host"`
 	UrlshToken string `help:"the URLsh API token used to access the shorten link generated"`
+
+	AmazonConnectAuthToken string `help:"the authorization token used to make successfully HTTP calls to Amazon Connect lambda functions"`
 }
 
 // NewMailroomConfig returns a new default configuration object
@@ -121,6 +123,8 @@ func NewMailroomConfig() *Config {
 
 		UrlshHost:  "",
 		UrlshToken: "",
+
+		AmazonConnectAuthToken: "",
 	}
 }
 
