@@ -14,8 +14,6 @@ import (
 	"github.com/greatnonprofits-nfp/goflow/utils"
 )
 
-// https://mailroom.ccl.com/mr/tickets/types/amazonconnect/event_callback/123455-fasdf2323-fasdf
-
 func init() {
 	base := "/mr/tickets/types/amazonconnect"
 	web.RegisterJSONRoute(http.MethodPost, base+"/event_callback/{ticket:[a-f0-9\\-]+}", web.WithHTTPLogs(handleEventCallback))
