@@ -89,12 +89,8 @@ func (s *service) Open(session flows.Session, subject, body string, logHTTP flow
 	}
 
 	// send history
-	var contactURN string
 	messages := make([]ChatMessage, 0)
-	for idx, msg := range msgs {
-		if idx == 0 {
-			contactURN = msg.URN().Path()
-		}
+	for _, msg := range msgs {
 		messages = append(messages, ChatMessage{
 			SegmentId: string(msg.UUID()),
 			Text:      msg.Text(),
@@ -105,7 +101,7 @@ func (s *service) Open(session flows.Session, subject, body string, logHTTP flow
 
 	m := &CreateChatMessageParams{
 		Messages:   messages,
-		Identifier: contactURN,
+		Identifier: contact.PreferredURN().URN().Path(),
 		Ticket:     string(ticket.UUID()),
 	}
 

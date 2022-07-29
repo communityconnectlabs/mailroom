@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"github.com/google/go-querystring/query"
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/gocommon/jsonx"
 )
@@ -35,11 +34,10 @@ type errorResponse struct {
 	Status   int32  `json:"status,omitempty"`
 }
 
-func (c *baseClient) request(method, endpoint string, payload url.Values, response interface{}) (*httpx.Trace, error) {
+func (c *baseClient) request(method, endpoint string, payload interface{}, response interface{}) (*httpx.Trace, error) {
 	fullUrl := fmt.Sprintf("%s/%s", c.endpointURL, endpoint)
 	headers := map[string]string{
 		"Authorization": fmt.Sprintf("%s", c.authToken),
-		"Content-Type":  "application/json",
 	}
 	var body io.Reader
 
@@ -49,6 +47,7 @@ func (c *baseClient) request(method, endpoint string, payload url.Values, respon
 			return nil, err
 		}
 		body = bytes.NewReader(data)
+		headers["Content-Type"] = "application/json"
 	}
 
 	req, err := httpx.NewRequest(method, fullUrl, body, headers)
@@ -76,11 +75,11 @@ func (c *baseClient) request(method, endpoint string, payload url.Values, respon
 	return trace, nil
 }
 
-func (c *baseClient) post(endpoint string, payload url.Values, response interface{}) (*httpx.Trace, error) {
+func (c *baseClient) post(endpoint string, payload interface{}, response interface{}) (*httpx.Trace, error) {
 	return c.request("POST", endpoint, payload, response)
 }
 
-func (c *baseClient) get(endpoint string, payload url.Values, response interface{}) (*httpx.Trace, error) {
+func (c *baseClient) get(endpoint string, payload interface{}, response interface{}) (*httpx.Trace, error) {
 	return c.request("GET", endpoint, payload, response)
 }
 
@@ -98,12 +97,7 @@ func NewClient(httpClient *http.Client, httpRetries *httpx.RetryConfig, authToke
 // CreateMessage create a message in chat channel.
 func (c *Client) CreateMessage(message *CreateChatMessageParams) (*CreateChatMessageResult, *httpx.Trace, error) {
 	response := &CreateChatMessageResult{}
-	data, err := query.Values(message)
-	if err != nil {
-		return nil, nil, err
-	}
-	data = removeEmpties(data)
-	trace, err := c.post("connect-agent", data, response)
+	trace, err := c.post("connect-agent", message, response)
 	if err != nil {
 		return nil, trace, err
 	}
@@ -116,11 +110,15 @@ func (c *Client) CompleteTask(taskSid string) {}
 type CreateChatMessageParams struct {
 	Messages   []ChatMessage `json:"messages,omitempty"`
 	Identifier string        `json:"identifier,omitempty"`
-	Ticket     string        `json:"ticket:omitempty"`
+	Ticket     string        `json:"ticket,omitempty"`
 }
 
 type CreateChatMessageResult struct {
-	ContactID string `json:"contact_id:omitempty"`
+	Ticket        string `json:"ticket:omitempty"`
+	ContactID     string `json:"contactId:omitempty"`
+	ParticipantID string `json:"participantId:omitempty"`
+	UserID        string `json:"userId:omitempty"`
+	Datetime      int    `json:"datetime:omitempty"`
 }
 
 type ChatMessage struct {
