@@ -108,9 +108,11 @@ func (c *Client) CreateMessage(message *CreateChatMessageParams) (*CreateChatMes
 func (c *Client) CompleteTask(taskSid string) {}
 
 type CreateChatMessageParams struct {
-	Messages   []ChatMessage `json:"messages,omitempty"`
-	Identifier string        `json:"identifier,omitempty"`
-	Ticket     string        `json:"ticket,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Timestamp  string `json:"timestamp,omitempty"`
+	Timezone   string `json:"timezone,omitempty"`
+	Identifier string `json:"identifier,omitempty"`
+	Ticket     string `json:"ticket,omitempty"`
 }
 
 type CreateChatMessageResult struct {

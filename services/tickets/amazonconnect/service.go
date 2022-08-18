@@ -2,6 +2,7 @@ package amazonconnect
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -89,18 +90,15 @@ func (s *service) Open(session flows.Session, subject, body string, logHTTP flow
 	}
 
 	// send history
-	messages := make([]ChatMessage, 0)
+	messages := ""
 	for _, msg := range msgs {
-		messages = append(messages, ChatMessage{
-			SegmentId: string(msg.UUID()),
-			Text:      msg.Text(),
-			Timestamp: time.Now().Format(time.RFC3339),
-			Timezone:  "UTC",
-		})
+		messages += fmt.Sprintf("%s\n", msg.Text())
 	}
 
 	m := &CreateChatMessageParams{
-		Messages:   messages,
+		Message:    messages,
+		Timestamp:  time.Now().Format(time.RFC3339),
+		Timezone:   "UTC",
 		Identifier: contact.PreferredURN().URN().Path(),
 		Ticket:     string(ticket.UUID()),
 	}
@@ -122,12 +120,9 @@ func (s *service) Forward(ticket *models.Ticket, msgUUID flows.MsgUUID, text str
 
 	if strings.TrimSpace(text) != "" {
 		msg := &CreateChatMessageParams{
-			Messages: []ChatMessage{{
-				SegmentId: string(msgUUID),
-				Text:      text,
-				Timestamp: time.Now().Format(time.RFC3339),
-				Timezone:  "UTC",
-			}},
+			Message:    text,
+			Timestamp:  time.Now().Format(time.RFC3339),
+			Timezone:   "UTC",
 			Identifier: contactIdentity,
 			Ticket:     string(ticket.UUID()),
 		}
