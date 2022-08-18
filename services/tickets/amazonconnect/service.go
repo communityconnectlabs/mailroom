@@ -2,6 +2,7 @@ package amazonconnect
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	"github.com/greatnonprofits-nfp/goflow/flows"
 	"github.com/greatnonprofits-nfp/goflow/utils"
 	"github.com/nyaruka/mailroom/config"
-	"fmt"
 )
 
 const (
