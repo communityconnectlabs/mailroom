@@ -124,7 +124,7 @@ func NewMailroomConfig() *Config {
 		UrlshHost:  "",
 		UrlshToken: "",
 
-		AmazonConnectAuthToken: "",
+		AmazonConnectAuthToken: "12345",
 	}
 }
 

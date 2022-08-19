@@ -1,0 +1,87 @@
+[
+  {
+    "label": "error response if no such ticketer",
+    "method": "POST",
+    "path": "/mr/tickets/types/amazonconnect/event_callback/XYZ",
+    "body": {
+      "event_type": "agent-message",
+      "auth_token": "12345",
+      "text": "we can help"
+    },
+    "status": 404,
+    "response": {
+      "error": "not found: /mr/tickets/types/amazonconnect/event_callback/XYZ"
+    }
+  },
+  {
+    "label": "unauthorized response if auth fails",
+    "method": "POST",
+    "path": "/mr/tickets/types/amazonconnect/event_callback/$cathy_ticket_uuid$",
+    "body": {
+      "event_type": "agent-message",
+      "auth_token": "123456",
+      "text": "we can help"
+    },
+    "status": 401,
+    "response": {
+      "status": "unauthorized"
+    }
+  },
+  {
+    "label": "error response if no such ticket",
+    "method": "POST",
+    "path": "/mr/tickets/types/amazonconnect/event_callback/164fee60-7e84-4a9e-ade3-4fce01af19a2",
+    "body": {
+      "event_type": "agent-message",
+      "auth_token": "12345",
+      "text": "we can help"
+    },
+    "status": 404,
+    "response": {
+      "error": "no such ticket 164fee60-7e84-4a9e-ade3-4fce01af19a2"
+    }
+  },
+  {
+    "label": "create message if everything is correct",
+    "method": "POST",
+    "path": "/mr/tickets/types/amazonconnect/event_callback/$cathy_ticket_uuid$",
+    "body": {
+      "event_type": "agent-message",
+      "auth_token": "12345",
+      "text": "we can help"
+    },
+    "status": 200,
+    "response": {
+      "status": "handled"
+    },
+    "db_assertions": [
+      {
+        "query": "select count(*) from msgs_msg where direction = 'O'",
+        "count": 1
+      },
+      {
+        "query": "select count(*) from tickets_ticket where status = 'O'",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "label": "close ticket if everything is correct",
+    "method": "POST",
+    "path": "/mr/tickets/types/amazonconnect/event_callback/$cathy_ticket_uuid$",
+    "body": {
+      "event_type": "close-ticket",
+      "auth_token": "12345"
+    },
+    "status": 200,
+    "response": {
+      "status": "handled"
+    },
+    "db_assertions": [
+      {
+        "query": "select count(*) from tickets_ticket where status = 'C'",
+        "count": 1
+      }
+    ]
+  }
+]
