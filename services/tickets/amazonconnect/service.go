@@ -108,7 +108,7 @@ func (s *service) Open(session flows.Session, subject, body string, logHTTP flow
 		logHTTP(flows.NewHTTPLog(trace, flows.HTTPStatusFromCode, s.redactor))
 	}
 	if err != nil {
-		return nil, errors.Wrap(err, "error calling Twilio")
+		return nil, errors.Wrap(err, "error calling Amazon Connect")
 	}
 
 	ticket.SetExternalID(ticketMessage.ContactID)
