@@ -18,7 +18,7 @@ require (
 	github.com/gomodule/redigo v2.0.0+incompatible
 	github.com/google/go-querystring v1.1.0
 	github.com/gorilla/schema v1.1.0
-	github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220628181340-67187c4adaa4
+	github.com/greatnonprofits-nfp/goflow v0.50.3-0.20220914225253-0716d2bb9082
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/lib/pq v1.9.0
 	github.com/mattn/go-sqlite3 v1.10.0 // indirect
