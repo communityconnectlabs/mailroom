@@ -11,6 +11,7 @@ import (
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/engine"
 	"github.com/nyaruka/goflow/flows/events"
+	"github.com/nyaruka/goflow/flows/modifiers"
 	"github.com/nyaruka/goflow/utils"
 	"github.com/nyaruka/mailroom/core/goflow"
 	"github.com/nyaruka/mailroom/core/models"
@@ -91,18 +92,19 @@ func handleSubmit(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 	}
 
 	// get the current version of this contact from the database
+	var modelContact *models.Contact
 	var flowContact *flows.Contact
 
 	if len(fs.Contact().URNs()) > 0 {
 		// create / fetch our contact based on the highest priority URN
 		urn := fs.Contact().URNs()[0].URN()
 
-		_, flowContact, _, err = models.GetOrCreateContact(ctx, rt.DB, oa, []urns.URN{urn}, models.NilChannelID)
+		modelContact, flowContact, _, err = models.GetOrCreateContact(ctx, rt.DB, oa, []urns.URN{urn}, models.NilChannelID)
 		if err != nil {
 			return nil, http.StatusInternalServerError, errors.Wrapf(err, "unable to look up contact")
 		}
 	} else {
-		_, flowContact, err = models.CreateContact(ctx, rt.DB, oa, models.NilUserID, "", envs.NilLanguage, nil)
+		modelContact, flowContact, err = models.CreateContact(ctx, rt.DB, oa, models.NilUserID, "", envs.NilLanguage, nil)
 		if err != nil {
 			return nil, http.StatusInternalServerError, errors.Wrapf(err, "unable to create contact")
 		}
@@ -115,7 +117,7 @@ func handleSubmit(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 
 	// run through each contact modifier, applying it to our contact
 	for _, m := range mods {
-		m.Apply(oa.Env(), oa.SessionAssets(), flowContact, appender)
+		modifiers.Apply(oa.Env(), goflow.Engine(rt.Config).Services(), oa.SessionAssets(), flowContact, m, appender)
 	}
 
 	// set this updated contact on our session
@@ -125,14 +127,14 @@ func handleSubmit(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 	modifierEvents = append(modifierEvents, sessionEvents...)
 
 	// create our sprint
-	sprint := engine.NewSprint(mods, modifierEvents)
+	sprint := engine.NewSprint(mods, modifierEvents, nil)
 
 	// write our session out
 	tx, err := rt.DB.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, http.StatusInternalServerError, errors.Wrapf(err, "error starting transaction for session write")
 	}
-	sessions, err := models.WriteSessions(ctx, rt, tx, oa, []flows.Session{fs}, []flows.Sprint{sprint}, nil)
+	sessions, err := models.InsertSessions(ctx, rt, tx, oa, []flows.Session{fs}, []flows.Sprint{sprint}, []*models.Contact{modelContact}, nil)
 	if err == nil && len(sessions) == 0 {
 		err = errors.Errorf("no sessions written")
 	}

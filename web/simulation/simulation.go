@@ -9,7 +9,7 @@ import (
 	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/goflow/assets/static"
 	"github.com/nyaruka/goflow/excellent/tools"
-	xtypes "github.com/nyaruka/goflow/excellent/types"
+	"github.com/nyaruka/goflow/excellent/types"
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/events"
 	"github.com/nyaruka/goflow/flows/resumes"
@@ -60,24 +60,25 @@ func (r *sessionRequest) channels() []assets.Channel {
 }
 
 type simulationResponse struct {
-	Session flows.Session   `json:"session"`
-	Events  []flows.Event   `json:"events"`
-	Context *xtypes.XObject `json:"context,omitempty"`
+	Session  flows.Session   `json:"session"`
+	Events   []flows.Event   `json:"events"`
+	Segments []flows.Segment `json:"segments"`
+	Context  *types.XObject  `json:"context,omitempty"`
 }
 
 func newSimulationResponse(session flows.Session, sprint flows.Sprint) *simulationResponse {
-	var context *xtypes.XObject
+	var context *types.XObject
 	if session != nil {
 		context = session.CurrentContext()
 
 		// include object defaults which are not marshaled by default
 		if context != nil {
-			tools.ContextWalkObjects(context, func(o *xtypes.XObject) {
+			tools.ContextWalkObjects(context, func(o *types.XObject) {
 				o.SetMarshalDefault(true)
 			})
 		}
 	}
-	return &simulationResponse{Session: session, Events: sprint.Events(), Context: context}
+	return &simulationResponse{Session: session, Events: sprint.Events(), Segments: sprint.Segments(), Context: context}
 }
 
 // Starts a new engine session
@@ -218,7 +219,7 @@ func handleResume(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 			var flow *models.Flow
 			for _, r := range session.Runs() {
 				if r.Status() == flows.RunStatusWaiting {
-					f, _ := oa.Flow(r.FlowReference().UUID)
+					f, _ := oa.FlowByUUID(r.FlowReference().UUID)
 					if f != nil {
 						flow = f.(*models.Flow)
 					}
@@ -234,7 +235,7 @@ func handleResume(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 				}
 
 				if triggeredFlow != nil {
-					tb := triggers.NewBuilder(oa.Env(), triggeredFlow.FlowReference(), resume.Contact())
+					tb := triggers.NewBuilder(oa.Env(), triggeredFlow.Reference(), resume.Contact())
 
 					var sessionTrigger flows.Trigger
 					if triggeredFlow.FlowType() == models.FlowTypeVoice {

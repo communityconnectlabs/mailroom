@@ -46,9 +46,20 @@ func handleTicketOpened(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, o
 		assigneeID = assignee.ID()
 	}
 
+	var openedInID models.FlowID
+	if scene.Session() != nil {
+		run, _ := scene.Session().FindStep(e.StepUUID())
+		flowAsset, _ := oa.FlowByUUID(run.FlowReference().UUID)
+		if flowAsset != nil {
+			openedInID = flowAsset.(*models.Flow).ID()
+		}
+	}
+
 	ticket := models.NewTicket(
 		event.Ticket.UUID,
 		oa.OrgID(),
+		scene.UserID(),
+		openedInID,
 		scene.ContactID(),
 		ticketer.ID(),
 		event.Ticket.ExternalID,
@@ -67,8 +78,8 @@ func handleTicketOpened(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, o
 		"contact_uuid":  scene.ContactUUID(),
 		"session_id":    scene.SessionID(),
 		"ticket_uuid":   event.Ticket.UUID,
-		"ticketer_name": ticketer.Name,
-		"ticketer_uuid": ticketer.UUID,
+		"ticketer_uuid": ticketer.UUID(),
+		"ticketer_name": ticketer.Name(),
 	}).Debug("ticket opened")
 
 	return nil

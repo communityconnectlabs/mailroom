@@ -93,56 +93,51 @@ type Service interface {
 	URNForRequest(r *http.Request) (urns.URN, error)
 
 	CallIDForRequest(r *http.Request) (string, error)
+
+	RedactValues(*models.Channel) []string
 }
 
 // HangupCall hangs up the passed in call also taking care of updating the status of our call in the process
-func HangupCall(ctx context.Context, rt *runtime.Runtime, conn *models.ChannelConnection) error {
+func HangupCall(ctx context.Context, rt *runtime.Runtime, conn *models.ChannelConnection) (*models.ChannelLog, error) {
 	// no matter what mark our call as failed
 	defer conn.MarkFailed(ctx, rt.DB, time.Now())
 
 	// load our org assets
 	oa, err := models.GetOrgAssets(ctx, rt, conn.OrgID())
 	if err != nil {
-		return errors.Wrapf(err, "unable to load org")
+		return nil, errors.Wrapf(err, "unable to load org")
 	}
 
 	// and our channel
 	channel := oa.ChannelByID(conn.ChannelID())
 	if channel == nil {
-		return errors.Wrapf(err, "unable to load channel")
+		return nil, errors.Wrapf(err, "unable to load channel")
 	}
 
 	// create the right service
-	c, err := GetService(channel)
+	svc, err := GetService(channel)
 	if err != nil {
-		return errors.Wrapf(err, "unable to create IVR service")
+		return nil, errors.Wrapf(err, "unable to create IVR service")
 	}
+
+	clog := models.NewChannelLog(models.ChannelLogTypeIVRHangup, channel, svc.RedactValues(channel))
+	clog.SetConnection(conn)
+	defer clog.End()
 
 	// try to request our call hangup
-	trace, err := c.HangupCall(conn.ExternalID())
-
-	// insert an channel log if we have an HTTP trace
+	trace, err := svc.HangupCall(conn.ExternalID())
 	if trace != nil {
-		desc := "Hangup Requested"
-		isError := false
-		if trace.Response == nil || trace.Response.StatusCode/100 != 2 {
-			desc = "Error Hanging up Call"
-			isError = true
-		}
-		log := models.NewChannelLog(trace, isError, desc, channel, conn)
-		err := models.InsertChannelLogs(ctx, rt.DB, []*models.ChannelLog{log})
-
-		// log any error inserting our channel log, but try to continue
-		if err != nil {
-			logrus.WithError(err).Error("error inserting channel log")
-		}
+		clog.HTTP(trace)
 	}
-
 	if err != nil {
-		return errors.Wrapf(err, "error hanging call up")
+		clog.Error(err)
 	}
 
-	return nil
+	if err := conn.AttachLog(ctx, rt.DB, clog); err != nil {
+		logrus.WithError(err).Error("error attaching ivr channel log")
+	}
+
+	return clog, err
 }
 
 // RequestCallStart creates a new ChannelSession for the passed in flow start and contact, returning the created session
@@ -201,10 +196,19 @@ func RequestCallStart(ctx context.Context, rt *runtime.Runtime, oa *models.OrgAs
 		return nil, errors.Wrapf(err, "error creating ivr session")
 	}
 
-	return conn, RequestCallStartForConnection(ctx, rt, channel, telURN, conn)
+	clog, err := RequestCallStartForConnection(ctx, rt, channel, telURN, conn)
+
+	// log any error inserting our channel log, but continue
+	if clog != nil {
+		if err := models.InsertChannelLogs(ctx, rt.DB, []*models.ChannelLog{clog}); err != nil {
+			logrus.WithError(err).Error("error inserting channel log")
+		}
+	}
+
+	return conn, err
 }
 
-func RequestCallStartForConnection(ctx context.Context, rt *runtime.Runtime, channel *models.Channel, telURN urns.URN, conn *models.ChannelConnection) error {
+func RequestCallStartForConnection(ctx context.Context, rt *runtime.Runtime, channel *models.Channel, telURN urns.URN, conn *models.ChannelConnection) (*models.ChannelLog, error) {
 	// the domain that will be used for callbacks, can be specific for channels due to white labeling
 	domain := channel.ConfigValue(models.ChannelConfigCallbackDomain, rt.Config.Domain)
 
@@ -217,7 +221,7 @@ func RequestCallStartForConnection(ctx context.Context, rt *runtime.Runtime, cha
 		if maxCalls > 0 {
 			count, err := models.ActiveChannelConnectionCount(ctx, rt.DB, channel.ID())
 			if err != nil {
-				return errors.Wrapf(err, "error finding number of active channel connections")
+				return nil, errors.Wrapf(err, "error finding number of active channel connections")
 			}
 
 			// we are at max calls, do not move on
@@ -225,9 +229,9 @@ func RequestCallStartForConnection(ctx context.Context, rt *runtime.Runtime, cha
 				logrus.WithField("channel_id", channel.ID()).Info("call being queued, max concurrent reached")
 				err := conn.MarkThrottled(ctx, rt.DB, time.Now())
 				if err != nil {
-					return errors.Wrapf(err, "error marking connection as throttled")
+					return nil, errors.Wrapf(err, "error marking connection as throttled")
 				}
-				return nil
+				return nil, nil
 			}
 		}
 	}
@@ -244,47 +248,40 @@ func RequestCallStartForConnection(ctx context.Context, rt *runtime.Runtime, cha
 	statusURL := fmt.Sprintf("https://%s/mr/ivr/c/%s/status", domain, channel.UUID())
 
 	// create the right service
-	c, err := GetService(channel)
+	svc, err := GetService(channel)
 	if err != nil {
-		return errors.Wrapf(err, "unable to create IVR service")
+		return nil, errors.Wrapf(err, "unable to create IVR service")
 	}
+
+	clog := models.NewChannelLog(models.ChannelLogTypeIVRStart, channel, svc.RedactValues(channel))
+	clog.SetConnection(conn)
+	defer clog.End()
 
 	// try to request our call start
-	callID, trace, err := c.RequestCall(telURN, resumeURL, statusURL, channel.MachineDetection())
-
-	/// insert an channel log if we have an HTTP trace
+	callID, trace, err := svc.RequestCall(telURN, resumeURL, statusURL, channel.MachineDetection())
 	if trace != nil {
-		desc := "Call Requested"
-		isError := false
-		if trace.Response == nil || trace.Response.StatusCode/100 != 2 {
-			desc = "Error Requesting Call"
-			isError = true
-		}
-		log := models.NewChannelLog(trace, isError, desc, channel, conn)
-		err := models.InsertChannelLogs(ctx, rt.DB, []*models.ChannelLog{log})
-
-		// log any error inserting our channel log, but try to continue
-		if err != nil {
-			logrus.WithError(err).Error("error inserting channel log")
-		}
+		clog.HTTP(trace)
 	}
-
 	if err != nil {
+		clog.Error(err)
+
 		// set our status as errored
 		err := conn.UpdateStatus(ctx, rt.DB, models.ConnectionStatusFailed, 0, time.Now())
 		if err != nil {
-			return errors.Wrapf(err, "error setting errored status on session")
+			return clog, errors.Wrapf(err, "error setting errored status on session")
 		}
-		return nil
+		return clog, nil
 	}
 
 	// update our channel session
-	err = conn.UpdateExternalID(ctx, rt.DB, string(callID))
-	if err != nil {
-		return errors.Wrapf(err, "error updating session external id")
+	if err := conn.UpdateExternalID(ctx, rt.DB, string(callID)); err != nil {
+		return clog, errors.Wrapf(err, "error updating session external id")
+	}
+	if err := conn.AttachLog(ctx, rt.DB, clog); err != nil {
+		logrus.WithError(err).Error("error attaching ivr channel log")
 	}
 
-	return nil
+	return clog, nil
 }
 
 // HandleAsFailure marks the passed in connection as errored and writes the appropriate error response to our writer
@@ -386,7 +383,7 @@ func StartIVRFlow(
 	}
 
 	// start our flow
-	sessions, err := runner.StartFlowForContacts(ctx, rt, oa, flow, []flows.Trigger{trigger}, hook, true)
+	sessions, err := runner.StartFlowForContacts(ctx, rt, oa, flow, []*models.Contact{c}, []flows.Trigger{trigger}, hook, true)
 	if err != nil {
 		return errors.Wrapf(err, "error starting flow")
 	}
@@ -416,7 +413,7 @@ func ResumeIVRFlow(
 		return errors.Wrapf(err, "error creating flow contact")
 	}
 
-	session, err := models.ActiveSessionForContact(ctx, rt.DB, rt.SessionStorage, oa, models.FlowTypeVoice, contact)
+	session, err := models.FindWaitingSessionForContact(ctx, rt.DB, rt.SessionStorage, oa, models.FlowTypeVoice, contact)
 	if err != nil {
 		return errors.Wrapf(err, "error loading session for contact")
 	}
@@ -434,7 +431,7 @@ func ResumeIVRFlow(
 
 	// check if connection has been marked as errored - it maybe have been updated by status callback
 	if conn.Status() == models.ConnectionStatusErrored || conn.Status() == models.ConnectionStatusFailed {
-		err = models.ExitSessions(ctx, rt.DB, []models.SessionID{session.ID()}, models.ExitInterrupted)
+		err = models.ExitSessions(ctx, rt.DB, []models.SessionID{session.ID()}, models.SessionStatusInterrupted)
 		if err != nil {
 			logrus.WithError(err).Error("error interrupting session")
 		}
@@ -450,7 +447,7 @@ func ResumeIVRFlow(
 
 	if body != nil {
 		// guess our content type and set it
-		contentType := http.DetectContentType(body)
+		contentType := httpx.DetectContentType(body)
 		w.Header().Set("Content-Type", contentType)
 		_, err := w.Write(body)
 		return err
@@ -484,7 +481,9 @@ func ResumeIVRFlow(
 	switch res := ivrResume.(type) {
 	case InputResume:
 		resume, svcErr, err = buildMsgResume(ctx, rt, svc, channel, contact, urn, conn, oa, r, res)
-		session.SetIncomingMsg(resume.(*resumes.MsgResume).Msg().ID(), null.NullString)
+		if resume != nil {
+			session.SetIncomingMsg(resume.(*resumes.MsgResume).Msg().ID(), null.NullString)
+		}
 
 	case DialResume:
 		resume, svcErr, err = buildDialResume(oa, contact, res)
@@ -503,7 +502,7 @@ func ResumeIVRFlow(
 		return svc.WriteErrorResponse(w, fmt.Errorf("no resume found, ending call"))
 	}
 
-	session, err = runner.ResumeFlow(ctx, rt, oa, session, resume, hook)
+	session, err = runner.ResumeFlow(ctx, rt, oa, session, c, resume, hook)
 	if err != nil {
 		return errors.Wrapf(err, "error resuming ivr flow")
 	}
@@ -515,7 +514,7 @@ func ResumeIVRFlow(
 			return errors.Wrapf(err, "error writing ivr response for resume")
 		}
 	} else {
-		err = models.ExitSessions(ctx, rt.DB, []models.SessionID{session.ID()}, models.ExitCompleted)
+		err = models.ExitSessions(ctx, rt.DB, []models.SessionID{session.ID()}, models.SessionStatusCompleted)
 		if err != nil {
 			logrus.WithError(err).Error("error closing session")
 		}

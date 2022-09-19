@@ -6,17 +6,19 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/nyaruka/gocommon/dbutil/assertdb"
 	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/goflow/envs"
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/definition"
+	"github.com/nyaruka/goflow/flows/modifiers"
 	"github.com/nyaruka/goflow/flows/routers"
 	"github.com/nyaruka/goflow/flows/triggers"
+	"github.com/nyaruka/mailroom/core/goflow"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/core/runner"
 	"github.com/nyaruka/mailroom/runtime"
-	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 
 	"github.com/gomodule/redigo/redis"
@@ -39,6 +41,7 @@ type TestCase struct {
 	Actions       ContactActionMap
 	Msgs          ContactMsgMap
 	Modifiers     ContactModifierMap
+	ModifierUser  *testdata.User
 	Assertions    []Assertion
 	SQLAssertions []SQLAssertion
 }
@@ -145,6 +148,7 @@ func createTestFlow(t *testing.T, uuid assets.FlowUUID, tc TestCase) flows.Flow 
 		definition.NewLocalization(),
 		nodes,
 		nil,
+		nil,
 	)
 	require.NoError(t, err)
 
@@ -156,6 +160,8 @@ func RunTestCases(t *testing.T, ctx context.Context, rt *runtime.Runtime, tcs []
 
 	oa, err := models.GetOrgAssets(ctx, rt, models.OrgID(1))
 	assert.NoError(t, err)
+
+	svcs := goflow.Engine(rt.Config).Services()
 
 	// reuse id from one of our real flows
 	flowUUID := testdata.Favorites.UUID
@@ -174,7 +180,7 @@ func RunTestCases(t *testing.T, ctx context.Context, rt *runtime.Runtime, tcs []
 		oa, err = oa.CloneForSimulation(ctx, rt, map[assets.FlowUUID]json.RawMessage{flowUUID: flowDef}, nil)
 		assert.NoError(t, err)
 
-		flow, err := oa.Flow(flowUUID)
+		flow, err := oa.FlowByUUID(flowUUID)
 		require.NoError(t, err)
 
 		options := runner.NewStartOptions()
@@ -217,11 +223,11 @@ func RunTestCases(t *testing.T, ctx context.Context, rt *runtime.Runtime, tcs []
 				Events:  make([]flows.Event, 0, len(mods)),
 			}
 
-			scene := models.NewSceneForContact(flowContact)
+			scene := models.NewSceneForContact(flowContact, tc.ModifierUser.SafeID())
 
 			// apply our modifiers
 			for _, mod := range mods {
-				mod.Apply(oa.Env(), oa.SessionAssets(), flowContact, func(e flows.Event) { result.Events = append(result.Events, e) })
+				modifiers.Apply(oa.Env(), svcs, oa.SessionAssets(), flowContact, mod, func(e flows.Event) { result.Events = append(result.Events, e) })
 			}
 
 			results[contact.ID()] = result
@@ -254,7 +260,7 @@ func RunTestCases(t *testing.T, ctx context.Context, rt *runtime.Runtime, tcs []
 
 		// now check our assertions
 		for j, a := range tc.SQLAssertions {
-			testsuite.AssertQuery(t, rt.DB, a.SQL, a.Args...).Returns(a.Count, "%d:%d: mismatch in expected count for query: %s", i, j, a.SQL)
+			assertdb.Query(t, rt.DB, a.SQL, a.Args...).Returns(a.Count, "%d:%d: mismatch in expected count for query: %s", i, j, a.SQL)
 		}
 
 		for j, a := range tc.Assertions {

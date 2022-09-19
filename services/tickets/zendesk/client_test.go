@@ -13,12 +13,12 @@ import (
 
 func TestCreateTarget(t *testing.T) {
 	defer httpx.SetRequestor(httpx.DefaultRequestor)
-	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
+	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]*httpx.MockResponse{
 		"https://nyaruka.zendesk.com/api/v2/targets.json": {
 			httpx.MockConnectionError,
-			httpx.NewMockResponse(400, nil, `{"description": "Something went wrong", "error": "Unknown"}`), // non-200 response
-			httpx.NewMockResponse(200, nil, `xx`), // non-JSON response
-			httpx.NewMockResponse(201, nil, `{
+			httpx.NewMockResponse(400, nil, []byte(`{"description": "Something went wrong", "error": "Unknown"}`)), // non-200 response
+			httpx.NewMockResponse(200, nil, []byte(`xx`)),                                                          // non-JSON response
+			httpx.NewMockResponse(201, nil, []byte(`{
 				"target": {
 					"id": 1234567,
 					"title": "Temba",
@@ -26,7 +26,7 @@ func TestCreateTarget(t *testing.T) {
 					"method": "POST",
 					"content_type": "application/json"
 				}
-			}`),
+			}`)),
 		},
 	}))
 
@@ -55,9 +55,9 @@ func TestCreateTarget(t *testing.T) {
 
 func TestDeleteTarget(t *testing.T) {
 	defer httpx.SetRequestor(httpx.DefaultRequestor)
-	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
+	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]*httpx.MockResponse{
 		"https://nyaruka.zendesk.com/api/v2/targets/123.json": {
-			httpx.NewMockResponse(200, nil, ``),
+			httpx.NewMockResponse(200, nil, nil),
 		},
 	}))
 
@@ -71,12 +71,12 @@ func TestDeleteTarget(t *testing.T) {
 
 func TestCreateTrigger(t *testing.T) {
 	defer httpx.SetRequestor(httpx.DefaultRequestor)
-	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
+	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]*httpx.MockResponse{
 		"https://nyaruka.zendesk.com/api/v2/triggers.json": {
 			httpx.MockConnectionError,
-			httpx.NewMockResponse(400, nil, `{"description": "Something went wrong", "error": "Unknown"}`), // non-200 response
-			httpx.NewMockResponse(200, nil, `xx`), // non-JSON response
-			httpx.NewMockResponse(201, nil, `{
+			httpx.NewMockResponse(400, nil, []byte(`{"description": "Something went wrong", "error": "Unknown"}`)), // non-200 response
+			httpx.NewMockResponse(200, nil, []byte(`xx`)),                                                          // non-JSON response
+			httpx.NewMockResponse(201, nil, []byte(`{
 				"trigger": {
 					"id": 1234567,
 					"title": "Notify Temba",
@@ -95,7 +95,7 @@ func TestCreateTrigger(t *testing.T) {
 						}
 					]
 				}
-			}`),
+			}`)),
 		},
 	}))
 
@@ -129,9 +129,9 @@ func TestCreateTrigger(t *testing.T) {
 
 func TestDeleteTrigger(t *testing.T) {
 	defer httpx.SetRequestor(httpx.DefaultRequestor)
-	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
+	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]*httpx.MockResponse{
 		"https://nyaruka.zendesk.com/api/v2/triggers/123.json": {
-			httpx.NewMockResponse(200, nil, ``),
+			httpx.NewMockResponse(200, nil, nil),
 		},
 	}))
 
@@ -145,15 +145,15 @@ func TestDeleteTrigger(t *testing.T) {
 
 func TestUpdateManyTickets(t *testing.T) {
 	defer httpx.SetRequestor(httpx.DefaultRequestor)
-	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
+	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]*httpx.MockResponse{
 		"https://nyaruka.zendesk.com/api/v2/tickets/update_many.json?ids=123,234": {
-			httpx.NewMockResponse(201, nil, `{
+			httpx.NewMockResponse(201, nil, []byte(`{
 				"job_status": {
 					"id": "1234-abcd",
 					"url": "http://zendesk.com",
 					"status": "queued"
 				}
-			}`),
+			}`)),
 		},
 	}))
 
@@ -169,12 +169,12 @@ func TestUpdateManyTickets(t *testing.T) {
 
 func TestPush(t *testing.T) {
 	defer httpx.SetRequestor(httpx.DefaultRequestor)
-	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
+	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]*httpx.MockResponse{
 		"https://nyaruka.zendesk.com/api/v2/any_channel/push.json": {
 			httpx.MockConnectionError,
-			httpx.NewMockResponse(400, nil, `{"description": "Something went wrong", "error": "Unknown"}`), // non-200 response
-			httpx.NewMockResponse(200, nil, `xx`), // non-JSON response
-			httpx.NewMockResponse(201, nil, `{
+			httpx.NewMockResponse(400, nil, []byte(`{"description": "Something went wrong", "error": "Unknown"}`)), // non-200 response
+			httpx.NewMockResponse(200, nil, []byte(`xx`)),                                                          // non-JSON response
+			httpx.NewMockResponse(201, nil, []byte(`{
 				"results": [
 					{
 						"external_resource_id": "123",
@@ -185,7 +185,7 @@ func TestPush(t *testing.T) {
 						"status": {"code":"processing_error", "description":"Boom"}
 					}
 				]
-			}`),
+			}`)),
 		},
 	}))
 

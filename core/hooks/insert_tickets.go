@@ -27,7 +27,7 @@ func (h *insertTicketsHook) Apply(ctx context.Context, rt *runtime.Runtime, tx *
 	}
 
 	// insert the tickets
-	err := models.InsertTickets(ctx, tx, tickets)
+	err := models.InsertTickets(ctx, tx, oa, tickets)
 	if err != nil {
 		return errors.Wrapf(err, "error inserting tickets")
 	}
@@ -36,7 +36,7 @@ func (h *insertTicketsHook) Apply(ctx context.Context, rt *runtime.Runtime, tx *
 	openEvents := make([]*models.TicketEvent, len(tickets))
 	eventsByTicket := make(map[*models.Ticket]*models.TicketEvent, len(tickets))
 	for i, ticket := range tickets {
-		evt := models.NewTicketOpenedEvent(ticket, models.NilUserID, ticket.AssigneeID())
+		evt := models.NewTicketOpenedEvent(ticket, ticket.OpenedByID(), ticket.AssigneeID())
 		openEvents[i] = evt
 		eventsByTicket[ticket] = evt
 	}

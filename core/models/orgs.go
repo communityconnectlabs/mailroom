@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
+	"github.com/nyaruka/gocommon/dbutil"
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/gocommon/jsonx"
 	"github.com/nyaruka/goflow/envs"
@@ -22,10 +24,7 @@ import (
 	"github.com/nyaruka/goflow/utils/smtpx"
 	"github.com/nyaruka/mailroom/core/goflow"
 	"github.com/nyaruka/mailroom/runtime"
-	"github.com/nyaruka/mailroom/utils/dbutil"
 	"github.com/nyaruka/null"
-
-	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -39,8 +38,8 @@ func init() {
 func emailServiceFactory(c *runtime.Config) engine.EmailServiceFactory {
 	var emailRetries = smtpx.NewFixedRetries(time.Second*3, time.Second*6)
 
-	return func(session flows.Session) (flows.EmailService, error) {
-		return orgFromSession(session).EmailService(c, emailRetries)
+	return func(sa flows.SessionAssets) (flows.EmailService, error) {
+		return orgFromAssets(sa).EmailService(c, emailRetries)
 	}
 }
 
@@ -49,16 +48,13 @@ func airtimeServiceFactory(c *runtime.Config) engine.AirtimeServiceFactory {
 	airtimeHTTPClient := &http.Client{Timeout: time.Duration(120 * time.Second)}
 	airtimeHTTPRetries := httpx.NewFixedRetries(time.Second*5, time.Second*10)
 
-	return func(session flows.Session) (flows.AirtimeService, error) {
-		return orgFromSession(session).AirtimeService(airtimeHTTPClient, airtimeHTTPRetries)
+	return func(sa flows.SessionAssets) (flows.AirtimeService, error) {
+		return orgFromAssets(sa).AirtimeService(airtimeHTTPClient, airtimeHTTPRetries)
 	}
 }
 
 // OrgID is our type for orgs ids
 type OrgID int
-
-// SessionStorageMode is our type for how we persist our sessions
-type SessionStorageMode string
 
 const (
 	// NilOrgID is the id 0 considered as nil org id
@@ -67,11 +63,6 @@ const (
 	configSMTPServer  = "smtp_server"
 	configDTOneKey    = "dtone_key"
 	configDTOneSecret = "dtone_secret"
-
-	configSessionStorageMode = "session_storage_mode"
-
-	DBSessions = SessionStorageMode("db")
-	S3Sessions = SessionStorageMode("s3")
 )
 
 // Org is mailroom's type for RapidPro orgs. It also implements the envs.Environment interface for GoFlow
@@ -93,10 +84,6 @@ func (o *Org) Suspended() bool { return o.o.Suspended }
 
 // UsesTopups returns whether the org uses topups
 func (o *Org) UsesTopups() bool { return o.o.UsesTopups }
-
-func (o *Org) SessionStorageMode() SessionStorageMode {
-	return SessionStorageMode(o.ConfigValue(configSessionStorageMode, string(DBSessions)))
-}
 
 // DateFormat returns the date format for this org
 func (o *Org) DateFormat() envs.DateFormat { return o.env.DateFormat() }
@@ -194,7 +181,7 @@ func (o *Org) StoreAttachment(ctx context.Context, rt *runtime.Runtime, filename
 	content.Close()
 
 	if contentType == "" {
-		contentType = http.DetectContentType(contentBytes)
+		contentType = httpx.DetectContentType(contentBytes)
 		contentType, _, _ = mime.ParseMediaType(contentType)
 	}
 
@@ -232,9 +219,9 @@ func (o *Org) attachmentPath(prefix string, filename string) string {
 	return path
 }
 
-// gets the underlying org for the given engine session
-func orgFromSession(session flows.Session) *Org {
-	return session.Assets().Source().(*OrgAssets).Org()
+// gets the underlying org for the given session assets
+func orgFromAssets(sa flows.SessionAssets) *Org {
+	return sa.Source().(*OrgAssets).Org()
 }
 
 // LoadOrg loads the org for the passed in id, returning any error encountered
@@ -251,7 +238,7 @@ func LoadOrg(ctx context.Context, cfg *runtime.Config, db sqlx.Queryer, orgID Or
 		return nil, errors.Errorf("no org with id: %d", orgID)
 	}
 
-	err = dbutil.ReadJSONRow(rows, org)
+	err = dbutil.ScanJSON(rows, org)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error unmarshalling org")
 	}

@@ -4,11 +4,17 @@ import (
 	"encoding/csv"
 	"io"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/nyaruka/goflow/utils"
 	"github.com/pkg/errors"
+	"gopkg.in/go-playground/validator.v9"
 )
+
+func init() {
+	utils.RegisterValidatorAlias("session_storage", "eq=db|eq=s3", func(e validator.FieldError) string { return "is not a valid session storage mode" })
+}
 
 // Config is our top level configuration object
 type Config struct {
@@ -41,6 +47,7 @@ type Config struct {
 	MaxStepsPerSprint    int    `help:"the maximum number of steps allowed per engine sprint"`
 	MaxResumesPerSession int    `help:"the maximum number of resumes allowed per engine session"`
 	MaxValueLength       int    `help:"the maximum size in characters for contact field values and run result values"`
+	SessionStorage       string `validate:"omitempty,session_storage"         help:"where to store session output (s3|db)"`
 
 	S3Endpoint       string `help:"the S3 endpoint we will write attachments to"`
 	S3Region         string `help:"the S3 region we will write attachments to"`
@@ -53,6 +60,7 @@ type Config struct {
 
 	AWSAccessKeyID     string `help:"the access key id to use when authenticating S3"`
 	AWSSecretAccessKey string `help:"the secret access key id to use when authenticating S3"`
+	AWSUseCredChain    bool   `help:"whether to use the AWS credentials chain. Defaults to false."`
 
 	LibratoUsername string `help:"the username that will be used to authenticate to Librato"`
 	LibratoToken    string `help:"the token that will be used to authenticate to Librato"`
@@ -60,13 +68,16 @@ type Config struct {
 	FCMKey            string `help:"the FCM API key used to notify Android relayers to sync"`
 	MailgunSigningKey string `help:"the signing key used to validate requests from mailgun"`
 
-	LogLevel string `help:"the logging level courier should use"`
-	UUIDSeed int    `help:"seed to use for UUID generation in a testing environment"`
-	Version  string `help:"the version of this mailroom install"`
+	InstanceName string `help:"the unique name of this instance used for analytics"`
+	LogLevel     string `help:"the logging level courier should use"`
+	UUIDSeed     int    `help:"seed to use for UUID generation in a testing environment"`
+	Version      string `help:"the version of this mailroom install"`
 }
 
 // NewDefaultConfig returns a new default configuration object
 func NewDefaultConfig() *Config {
+	hostname, _ := os.Hostname()
+
 	return &Config{
 		DB:         "postgres://temba:temba@localhost/temba?sslmode=disable&Timezone=UTC",
 		ReadonlyDB: "",
@@ -90,9 +101,10 @@ func NewDefaultConfig() *Config {
 
 		SMTPServer:           "",
 		DisallowedNetworks:   `127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fe80::/10`,
-		MaxStepsPerSprint:    100,
+		MaxStepsPerSprint:    200,
 		MaxResumesPerSession: 250,
 		MaxValueLength:       640,
+		SessionStorage:       "db",
 
 		S3Endpoint:       "https://s3.amazonaws.com",
 		S3Region:         "us-east-1",
@@ -105,10 +117,12 @@ func NewDefaultConfig() *Config {
 
 		AWSAccessKeyID:     "",
 		AWSSecretAccessKey: "",
+		AWSUseCredChain:    false,
 
-		LogLevel: "error",
-		UUIDSeed: 0,
-		Version:  "Dev",
+		InstanceName: hostname,
+		LogLevel:     "error",
+		UUIDSeed:     0,
+		Version:      "Dev",
 	}
 }
 

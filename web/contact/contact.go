@@ -20,6 +20,7 @@ func init() {
 	web.RegisterJSONRoute(http.MethodPost, "/mr/contact/create", web.RequireAuthToken(handleCreate))
 	web.RegisterJSONRoute(http.MethodPost, "/mr/contact/modify", web.RequireAuthToken(handleModify))
 	web.RegisterJSONRoute(http.MethodPost, "/mr/contact/resolve", web.RequireAuthToken(handleResolve))
+	web.RegisterJSONRoute(http.MethodPost, "/mr/contact/interrupt", web.RequireAuthToken(handleInterrupt))
 }
 
 // Request to create a new contact.
@@ -38,7 +39,7 @@ func init() {
 //
 type createRequest struct {
 	OrgID   models.OrgID        `json:"org_id"   validate:"required"`
-	UserID  models.UserID       `json:"user_id"`
+	UserID  models.UserID       `json:"user_id"  validate:"required"`
 	Contact *models.ContactSpec `json:"contact"  validate:"required"`
 }
 
@@ -66,7 +67,7 @@ func handleCreate(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 	}
 
 	modifiersByContact := map[*flows.Contact][]flows.Modifier{contact: c.Mods}
-	_, err = models.ApplyModifiers(ctx, rt, oa, modifiersByContact)
+	_, err = models.ApplyModifiers(ctx, rt, oa, request.UserID, modifiersByContact)
 	if err != nil {
 		return nil, http.StatusInternalServerError, errors.Wrap(err, "error modifying new contact")
 	}
@@ -91,10 +92,10 @@ func handleCreate(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 //   }
 //
 type modifyRequest struct {
-	OrgID      models.OrgID       `json:"org_id"       validate:"required"`
-	UserID     models.UserID      `json:"user_id"`
-	ContactIDs []models.ContactID `json:"contact_ids"  validate:"required"`
-	Modifiers  []json.RawMessage  `json:"modifiers"    validate:"required"`
+	OrgID      models.OrgID       `json:"org_id"      validate:"required"`
+	UserID     models.UserID      `json:"user_id"     validate:"required"`
+	ContactIDs []models.ContactID `json:"contact_ids" validate:"required"`
+	Modifiers  []json.RawMessage  `json:"modifiers"   validate:"required"`
 }
 
 // Response for a contact update. Will return the full contact state and any errors
@@ -154,7 +155,7 @@ func handleModify(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 		modifiersByContact[flowContact] = mods
 	}
 
-	eventsByContact, err := models.ApplyModifiers(ctx, rt, oa, modifiersByContact)
+	eventsByContact, err := models.ApplyModifiers(ctx, rt, oa, request.UserID, modifiersByContact)
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
@@ -198,13 +199,18 @@ func handleResolve(ctx context.Context, rt *runtime.Runtime, r *http.Request) (i
 		return nil, http.StatusInternalServerError, errors.Wrapf(err, "unable to load org assets")
 	}
 
-	_, contact, created, err := models.GetOrCreateContact(ctx, rt.DB, oa, []urns.URN{request.URN}, request.ChannelID)
+	urn := request.URN.Normalize(string(oa.Env().DefaultCountry()))
+
+	if err := urn.Validate(); err != nil {
+		return errors.Wrapf(err, "URN failed validation"), http.StatusBadRequest, nil
+	}
+
+	_, contact, created, err := models.GetOrCreateContact(ctx, rt.DB, oa, []urns.URN{urn}, request.ChannelID)
 	if err != nil {
 		return nil, http.StatusInternalServerError, errors.Wrapf(err, "error getting or creating contact")
 	}
 
 	// find the URN on the contact
-	urn := request.URN.Normalize(string(oa.Env().DefaultCountry()))
 	for _, u := range contact.URNs() {
 		if urn.Identity() == u.URN().Identity() {
 			urn = u.URN()
@@ -220,4 +226,33 @@ func handleResolve(ctx context.Context, rt *runtime.Runtime, r *http.Request) (i
 		},
 		"created": created,
 	}, http.StatusOK, nil
+}
+
+// Request that a single contact is interrupted. Multiple contacts should be interrupted via the task.
+//
+//   {
+//     "org_id": 1,
+//     "user_id": 3,
+//     "contact_id": 235
+//   }
+//
+type interruptRequest struct {
+	OrgID     models.OrgID     `json:"org_id"     validate:"required"`
+	UserID    models.UserID    `json:"user_id"    validate:"required"`
+	ContactID models.ContactID `json:"contact_id" validate:"required"`
+}
+
+// handles a request to interrupt a contact
+func handleInterrupt(ctx context.Context, rt *runtime.Runtime, r *http.Request) (interface{}, int, error) {
+	request := &interruptRequest{}
+	if err := utils.UnmarshalAndValidateWithLimit(r.Body, request, web.MaxRequestBytes); err != nil {
+		return errors.Wrapf(err, "request failed validation"), http.StatusBadRequest, nil
+	}
+
+	count, err := models.InterruptSessionsForContacts(ctx, rt.DB, []models.ContactID{request.ContactID})
+	if err != nil {
+		return nil, http.StatusInternalServerError, errors.Wrapf(err, "unable to interrupt contact")
+	}
+
+	return map[string]interface{}{"sessions": count}, http.StatusOK, nil
 }

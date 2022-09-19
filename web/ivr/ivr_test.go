@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/nyaruka/gocommon/dbutil/assertdb"
 	"github.com/nyaruka/gocommon/jsonx"
 	"github.com/nyaruka/goflow/test"
 	"github.com/nyaruka/mailroom/core/models"
@@ -73,8 +74,8 @@ func TestTwilioIVR(t *testing.T) {
 	server.Start()
 	defer server.Stop()
 
-	// add auth tokens
-	db.MustExec(`UPDATE channels_channel SET config = '{"auth_token": "token", "account_sid": "sid", "callback_domain": "localhost:8090", "machine_detection": true}' WHERE id = $1`, testdata.TwilioChannel.ID)
+	// set callback domain and enable machine detection
+	db.MustExec(`UPDATE channels_channel SET config = config::jsonb || '{"callback_domain": "localhost:8090", "machine_detection": true}'::jsonb WHERE id = $1`, testdata.TwilioChannel.ID)
 
 	// create a flow start for cathy bob, and george
 	parentSummary := json.RawMessage(`{
@@ -93,7 +94,7 @@ func TestTwilioIVR(t *testing.T) {
 		}, 
 		"results": {}
 	}`)
-	start := models.NewFlowStart(testdata.Org1.ID, models.StartTypeTrigger, models.FlowTypeVoice, testdata.IVRFlow.ID, models.DoRestartParticipants, models.DoIncludeActive).
+	start := models.NewFlowStart(testdata.Org1.ID, models.StartTypeTrigger, models.FlowTypeVoice, testdata.IVRFlow.ID).
 		WithContactIDs([]models.ContactID{testdata.Cathy.ID, testdata.Bob.ID, testdata.George.ID}).
 		WithParentSummary(parentSummary)
 
@@ -115,11 +116,11 @@ func TestTwilioIVR(t *testing.T) {
 	require.NoError(t, err)
 
 	// check our 3 contacts have 3 wired calls
-	testsuite.AssertQuery(t, db, `SELECT COUNT(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = $2 AND external_id = $3`,
+	assertdb.Query(t, db, `SELECT COUNT(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = $2 AND external_id = $3`,
 		testdata.Cathy.ID, models.ConnectionStatusWired, "Call1").Returns(1)
-	testsuite.AssertQuery(t, db, `SELECT COUNT(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = $2 AND external_id = $3`,
+	assertdb.Query(t, db, `SELECT COUNT(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = $2 AND external_id = $3`,
 		testdata.Bob.ID, models.ConnectionStatusWired, "Call2").Returns(1)
-	testsuite.AssertQuery(t, db, `SELECT COUNT(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = $2 AND external_id = $3`,
+	assertdb.Query(t, db, `SELECT COUNT(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = $2 AND external_id = $3`,
 		testdata.George.ID, models.ConnectionStatusWired, "Call3").Returns(1)
 
 	tcs := []struct {
@@ -319,23 +320,24 @@ func TestTwilioIVR(t *testing.T) {
 		}
 
 		for connExtID, expStatus := range tc.expectedConnStatus {
-			testsuite.AssertQuery(t, db, `SELECT status FROM channels_channelconnection WHERE external_id = $1`, connExtID).
+			assertdb.Query(t, db, `SELECT status FROM channels_channelconnection WHERE external_id = $1`, connExtID).
 				Columns(map[string]interface{}{"status": expStatus}, "status mismatch for connection '%s' in test '%s'", connExtID, tc.label)
 		}
 	}
 
 	// check our final state of sessions, runs, msgs, connections
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM flows_flowsession WHERE contact_id = $1 AND status = 'C'`, testdata.Cathy.ID).Returns(1)
+	assertdb.Query(t, db, `SELECT count(*) FROM flows_flowsession WHERE contact_id = $1 AND status = 'C'`, testdata.Cathy.ID).Returns(1)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM flows_flowrun WHERE contact_id = $1 AND is_active = FALSE`, testdata.Cathy.ID).Returns(1)
+	assertdb.Query(t, db, `SELECT count(*) FROM flows_flowrun WHERE contact_id = $1 AND status = 'C'`, testdata.Cathy.ID).Returns(1)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' AND connection_id = 1 AND status = 'W' AND direction = 'O'`, testdata.Cathy.ID).Returns(8)
+	assertdb.Query(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' AND status = 'W' AND direction = 'O'`, testdata.Cathy.ID).Returns(8)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' AND connection_id = 1 AND status = 'H' AND direction = 'I'`, testdata.Cathy.ID).Returns(5)
+	assertdb.Query(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' AND status = 'H' AND direction = 'I'`, testdata.Cathy.ID).Returns(5)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM channels_channellog WHERE connection_id = 1 AND channel_id IS NOT NULL`).Returns(9)
+	assertdb.Query(t, db, `SELECT count(*) FROM channels_channellog WHERE connection_id = 1 AND channel_id = $1`, testdata.TwilioChannel.ID).Returns(9)
+	assertdb.Query(t, db, `SELECT count(*) FROM channels_channellog WHERE http_logs::text LIKE '%sesame%'`).Returns(0) // auth token redacted
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' AND connection_id = 2 
+	assertdb.Query(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' 
 		AND ((status = 'H' AND direction = 'I') OR (status = 'W' AND direction = 'O'))`, testdata.Bob.ID).Returns(2)
 }
 
@@ -384,8 +386,8 @@ func TestVonageIVR(t *testing.T) {
 	// deactivate our twilio channel
 	db.MustExec(`UPDATE channels_channel SET is_active = FALSE WHERE id = $1`, testdata.TwilioChannel.ID)
 
-	// add auth tokens
-	db.MustExec(`UPDATE channels_channel SET config = '{"nexmo_app_id": "app_id", "nexmo_app_private_key": "-----BEGIN PRIVATE KEY-----\nMIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAKNwapOQ6rQJHetP\nHRlJBIh1OsOsUBiXb3rXXE3xpWAxAha0MH+UPRblOko+5T2JqIb+xKf9Vi3oTM3t\nKvffaOPtzKXZauscjq6NGzA3LgeiMy6q19pvkUUOlGYK6+Xfl+B7Xw6+hBMkQuGE\nnUS8nkpR5mK4ne7djIyfHFfMu4ptAgMBAAECgYA+s0PPtMq1osG9oi4xoxeAGikf\nJB3eMUptP+2DYW7mRibc+ueYKhB9lhcUoKhlQUhL8bUUFVZYakP8xD21thmQqnC4\nf63asad0ycteJMLb3r+z26LHuCyOdPg1pyLk3oQ32lVQHBCYathRMcVznxOG16VK\nI8BFfstJTaJu0lK/wQJBANYFGusBiZsJQ3utrQMVPpKmloO2++4q1v6ZR4puDQHx\nTjLjAIgrkYfwTJBLBRZxec0E7TmuVQ9uJ+wMu/+7zaUCQQDDf2xMnQqYknJoKGq+\noAnyC66UqWC5xAnQS32mlnJ632JXA0pf9pb1SXAYExB1p9Dfqd3VAwQDwBsDDgP6\nHD8pAkEA0lscNQZC2TaGtKZk2hXkdcH1SKru/g3vWTkRHxfCAznJUaza1fx0wzdG\nGcES1Bdez0tbW4llI5By/skZc2eE3QJAFl6fOskBbGHde3Oce0F+wdZ6XIJhEgCP\niukIcKZoZQzoiMJUoVRrA5gqnmaYDI5uRRl/y57zt6YksR3KcLUIuQJAd242M/WF\n6YAZat3q/wEeETeQq1wrooew+8lHl05/Nt0cCpV48RGEhJ83pzBm3mnwHf8lTBJH\nx6XroMXsmbnsEw==\n-----END PRIVATE KEY-----", "callback_domain": "localhost:8090"}', role='SRCA' WHERE id = $1`, testdata.VonageChannel.ID)
+	// update callback domain and role
+	db.MustExec(`UPDATE channels_channel SET config = config::jsonb || '{"callback_domain": "localhost:8090"}'::jsonb, role='SRCA' WHERE id = $1`, testdata.VonageChannel.ID)
 
 	// start test server
 	ts := httptest.NewServer(http.HandlerFunc(mockVonageHandler))
@@ -401,7 +403,7 @@ func TestVonageIVR(t *testing.T) {
 
 	// create a flow start for cathy and george
 	extra := json.RawMessage(`{"ref_id":"123"}`)
-	start := models.NewFlowStart(testdata.Org1.ID, models.StartTypeTrigger, models.FlowTypeVoice, testdata.IVRFlow.ID, models.DoRestartParticipants, models.DoIncludeActive).
+	start := models.NewFlowStart(testdata.Org1.ID, models.StartTypeTrigger, models.FlowTypeVoice, testdata.IVRFlow.ID).
 		WithContactIDs([]models.ContactID{testdata.Cathy.ID, testdata.George.ID}).
 		WithExtra(extra)
 	models.InsertFlowStarts(ctx, db, []*models.FlowStart{start})
@@ -421,10 +423,10 @@ func TestVonageIVR(t *testing.T) {
 	err = ivr_tasks.HandleFlowStartBatch(ctx, rt, batch)
 	assert.NoError(t, err)
 
-	testsuite.AssertQuery(t, db, `SELECT COUNT(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = $2 AND external_id = $3`,
+	assertdb.Query(t, db, `SELECT COUNT(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = $2 AND external_id = $3`,
 		testdata.Cathy.ID, models.ConnectionStatusWired, "Call1").Returns(1)
 
-	testsuite.AssertQuery(t, db, `SELECT COUNT(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = $2 AND external_id = $3`,
+	assertdb.Query(t, db, `SELECT COUNT(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = $2 AND external_id = $3`,
 		testdata.George.ID, models.ConnectionStatusWired, "Call2").Returns(1)
 
 	tcs := []struct {
@@ -450,7 +452,7 @@ func TestVonageIVR(t *testing.T) {
 					"action": "input",
 					"eventMethod": "POST",
 					"eventUrl": [
-						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=1&urn=tel%3A%2B16055741111%3Fid%3D10000%26priority%3D1000&wait_type=gather&sig=KqiNYjpUMvqtJLX3Pi9tmL03XVk%3D"
+						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=1&urn=tel%3A%2B16055741111%3Fid%3D10000%26priority%3D1000&wait_type=gather&sig=O9Lq3OdBw1EoZ1KD6XSjIaKvuRg%3D"
 					],
 					"maxDigits": 1,
 					"submitOnHash": true,
@@ -542,7 +544,7 @@ func TestVonageIVR(t *testing.T) {
 					"action": "input",
 					"eventMethod": "POST",
 					"eventUrl": [
-						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=2&urn=tel%3A%2B16055743333%3Fid%3D10002%26priority%3D1000&wait_type=gather&sig=QbU8c2ChHdJln%2BE5wUi%2BR6mF0nY%3D"
+						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=2&urn=tel%3A%2B16055743333%3Fid%3D10002%26priority%3D1000&wait_type=gather&sig=uY7YwwGJn79IhdQUaKpQ932Fbss%3D"
 					],
 					"maxDigits": 1,
 					"submitOnHash": true,
@@ -565,7 +567,7 @@ func TestVonageIVR(t *testing.T) {
 					"action": "input",
 					"eventMethod": "POST",
 					"eventUrl": [
-						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=2&urn=tel%3A%2B16055743333%3Fid%3D10002%26priority%3D1000&wait_type=gather&sig=QbU8c2ChHdJln%2BE5wUi%2BR6mF0nY%3D"
+						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=2&urn=tel%3A%2B16055743333%3Fid%3D10002%26priority%3D1000&wait_type=gather&sig=uY7YwwGJn79IhdQUaKpQ932Fbss%3D"
 					],
 					"maxDigits": 20,
 					"submitOnHash": true,
@@ -621,24 +623,21 @@ func TestVonageIVR(t *testing.T) {
 	}
 
 	// check our final state of sessions, runs, msgs, connections
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM flows_flowsession WHERE contact_id = $1 AND status = 'C'`, testdata.Cathy.ID).Returns(1)
+	assertdb.Query(t, db, `SELECT count(*) FROM flows_flowsession WHERE contact_id = $1 AND status = 'C'`, testdata.Cathy.ID).Returns(1)
+	assertdb.Query(t, db, `SELECT count(*) FROM flows_flowrun WHERE contact_id = $1 AND status = 'C'`, testdata.Cathy.ID).Returns(1)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM flows_flowrun WHERE contact_id = $1 AND is_active = FALSE`, testdata.Cathy.ID).Returns(1)
+	assertdb.Query(t, db, `SELECT count(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = 'D' AND duration = 50`, testdata.Cathy.ID).Returns(1)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM channels_channelconnection WHERE contact_id = $1 AND status = 'D' AND duration = 50`, testdata.Cathy.ID).Returns(1)
+	assertdb.Query(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' AND status = 'W' AND direction = 'O'`, testdata.Cathy.ID).Returns(9)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' 
-		AND connection_id = 1 AND status = 'W' AND direction = 'O'`, testdata.Cathy.ID).Returns(9)
+	assertdb.Query(t, db, `SELECT count(*) FROM channels_channelconnection WHERE status = 'F' AND direction = 'I'`).Returns(1)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM channels_channelconnection WHERE status = 'F' AND direction = 'I'`).Returns(1)
+	assertdb.Query(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' AND status = 'H' AND direction = 'I'`, testdata.Cathy.ID).Returns(5)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' 
-		AND connection_id = 1 AND status = 'H' AND direction = 'I'`, testdata.Cathy.ID).Returns(5)
+	assertdb.Query(t, db, `SELECT count(*) FROM channels_channellog WHERE connection_id = 1 AND channel_id = $1`, testdata.VonageChannel.ID).Returns(10)
+	assertdb.Query(t, db, `SELECT count(*) FROM channels_channellog WHERE http_logs::text LIKE '%BEGIN PRIVATE KEY%'`).Returns(0) // private key redacted
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM channels_channellog WHERE connection_id = 1 AND channel_id IS NOT NULL`).Returns(10)
+	assertdb.Query(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' AND ((status = 'H' AND direction = 'I') OR (status = 'W' AND direction = 'O'))`, testdata.George.ID).Returns(3)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND msg_type = 'V' 
-		AND connection_id = 2 AND ((status = 'H' AND direction = 'I') OR (status = 'W' AND direction = 'O'))`, testdata.George.ID).Returns(3)
-
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM channels_channelconnection WHERE status = 'D' AND contact_id = $1`, testdata.George.ID).Returns(1)
+	assertdb.Query(t, db, `SELECT count(*) FROM channels_channelconnection WHERE status = 'D' AND contact_id = $1`, testdata.George.ID).Returns(1)
 }

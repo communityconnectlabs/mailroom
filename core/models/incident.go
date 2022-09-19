@@ -13,8 +13,8 @@ import (
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/events"
 	"github.com/nyaruka/mailroom/runtime"
-	"github.com/nyaruka/mailroom/utils/redisx"
 	"github.com/nyaruka/null"
+	"github.com/nyaruka/redisx"
 	"github.com/pkg/errors"
 )
 
@@ -97,13 +97,15 @@ func IncidentWebhooksUnhealthy(ctx context.Context, db Queryer, rp *redis.Pool, 
 	return id, nil
 }
 
-const insertIncidentSQL = `
-INSERT INTO notifications_incident(org_id, incident_type, scope, started_on, channel_id) VALUES($1, $2, $3, $4, $5)
-ON CONFLICT DO NOTHING RETURNING id`
+const sqlInsertIncident = `
+INSERT INTO notifications_incident(org_id, incident_type, scope, started_on, channel_id) 
+     VALUES($1, $2, $3, $4, $5)
+ON CONFLICT DO NOTHING 
+  RETURNING id`
 
 func getOrCreateIncident(ctx context.Context, db Queryer, oa *OrgAssets, incident *Incident) (IncidentID, error) {
 	var incidentID IncidentID
-	err := db.GetContext(ctx, &incidentID, insertIncidentSQL, incident.OrgID, incident.Type, incident.Scope, incident.StartedOn, incident.ChannelID)
+	err := db.GetContext(ctx, &incidentID, sqlInsertIncident, incident.OrgID, incident.Type, incident.Scope, incident.StartedOn, incident.ChannelID)
 	if err != nil && err != sql.ErrNoRows {
 		return NilIncidentID, errors.Wrap(err, "error inserting incident")
 	}
@@ -125,13 +127,13 @@ func getOrCreateIncident(ctx context.Context, db Queryer, oa *OrgAssets, inciden
 	return incidentID, nil
 }
 
-const selectOpenIncidentsSQL = `
+const sqlSelectOpenIncidents = `
 SELECT id, org_id, incident_type, scope, started_on, ended_on, channel_id
-FROM notifications_incident
-WHERE ended_on IS NULL AND incident_type = ANY($1)`
+  FROM notifications_incident
+ WHERE ended_on IS NULL AND incident_type = ANY($1)`
 
 func GetOpenIncidents(ctx context.Context, db Queryer, types []IncidentType) ([]*Incident, error) {
-	rows, err := db.QueryxContext(ctx, selectOpenIncidentsSQL, pq.Array(types))
+	rows, err := db.QueryxContext(ctx, sqlSelectOpenIncidents, pq.Array(types))
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying open incidents")
 	}
@@ -203,6 +205,6 @@ func (n *WebhookNode) Healthy(rt *runtime.Runtime) (bool, error) {
 	return unhealthy < 10 || (100*unhealthy/(healthy+unhealthy)) < 25, nil
 }
 
-func (n *WebhookNode) series() (*redisx.Series, *redisx.Series) {
-	return redisx.NewSeries("webhooks:healthy", time.Minute*5, 4), redisx.NewSeries("webhooks:unhealthy", time.Minute*5, 4)
+func (n *WebhookNode) series() (*redisx.IntervalSeries, *redisx.IntervalSeries) {
+	return redisx.NewIntervalSeries("webhooks:healthy", time.Minute*5, 4), redisx.NewIntervalSeries("webhooks:unhealthy", time.Minute*5, 4)
 }

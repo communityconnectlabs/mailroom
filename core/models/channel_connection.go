@@ -105,9 +105,8 @@ func (c *ChannelConnection) ErrorReason() ConnectionError { return ConnectionErr
 func (c *ChannelConnection) ErrorCount() int              { return c.c.ErrorCount }
 func (c *ChannelConnection) NextAttempt() *time.Time      { return c.c.NextAttempt }
 
-const insertConnectionSQL = `
-INSERT INTO
-	channels_channelconnection
+const sqlInsertConnection = `
+INSERT INTO channels_channelconnection
 (
 	created_on,
 	modified_on,
@@ -122,7 +121,6 @@ INSERT INTO
 	contact_urn_id,
 	error_count
 )
-
 VALUES(
 	NOW(),
 	NOW(),
@@ -137,10 +135,7 @@ VALUES(
 	:contact_urn_id,
 	0
 )
-RETURNING
-	id,
-	NOW();
-`
+RETURNING id, NOW();`
 
 // InsertIVRConnection creates a new IVR session for the passed in org, channel and contact, inserting it
 func InsertIVRConnection(ctx context.Context, db *sqlx.DB, orgID OrgID, channelID ChannelID, startID StartID, contactID ContactID, urnID URNID,
@@ -159,7 +154,7 @@ func InsertIVRConnection(ctx context.Context, db *sqlx.DB, orgID OrgID, channelI
 	c.ExternalID = externalID
 	c.StartID = startID
 
-	rows, err := db.NamedQueryContext(ctx, insertConnectionSQL, c)
+	rows, err := db.NamedQueryContext(ctx, sqlInsertConnection, c)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error inserting new channel connection")
 	}
@@ -216,13 +211,13 @@ FROM
 	channels_channelconnection as cc
 	LEFT OUTER JOIN flows_flowstart_connections fsc ON cc.id = fsc.channelconnection_id
 WHERE
-	cc.id = $1
+	cc.org_id = $1 AND cc.id = $2
 `
 
 // SelectChannelConnection loads a channel connection by id
-func SelectChannelConnection(ctx context.Context, db Queryer, id ConnectionID) (*ChannelConnection, error) {
+func SelectChannelConnection(ctx context.Context, db Queryer, orgID OrgID, id ConnectionID) (*ChannelConnection, error) {
 	conn := &ChannelConnection{}
-	err := db.GetContext(ctx, &conn.c, selectConnectionSQL, id)
+	err := db.GetContext(ctx, &conn.c, selectConnectionSQL, orgID, id)
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to load channel connection with id: %d", id)
 	}
@@ -382,6 +377,11 @@ func (c *ChannelConnection) MarkErrored(ctx context.Context, db Queryer, now tim
 	}
 
 	return nil
+}
+
+func (c *ChannelConnection) AttachLog(ctx context.Context, db Queryer, clog *ChannelLog) error {
+	_, err := db.ExecContext(ctx, `UPDATE channels_channelconnection SET log_uuids = array_append(log_uuids, $2) WHERE id = $1`, c.c.ID, clog.UUID())
+	return errors.Wrap(err, "error attaching log to channel connection")
 }
 
 // MarkFailed updates the status for this connection

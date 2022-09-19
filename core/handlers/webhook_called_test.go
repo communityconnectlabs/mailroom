@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nyaruka/gocommon/dates"
+	"github.com/nyaruka/gocommon/dbutil/assertdb"
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/goflow/envs"
@@ -18,8 +19,8 @@ import (
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
-	"github.com/nyaruka/mailroom/utils/redisx"
-	"github.com/nyaruka/mailroom/utils/redisx/assertredis"
+	"github.com/nyaruka/redisx"
+	"github.com/nyaruka/redisx/assertredis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,15 +31,15 @@ func TestWebhookCalled(t *testing.T) {
 	defer testsuite.Reset(testsuite.ResetAll)
 	defer httpx.SetRequestor(httpx.DefaultRequestor)
 
-	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
+	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]*httpx.MockResponse{
 		"http://rapidpro.io/": {
-			httpx.NewMockResponse(200, nil, "OK"),
-			httpx.NewMockResponse(200, nil, "OK"),
+			httpx.NewMockResponse(200, nil, []byte("OK")),
+			httpx.NewMockResponse(200, nil, []byte("OK")),
 		},
 		"http://rapidpro.io/?unsub=1": {
-			httpx.NewMockResponse(410, nil, "Gone"),
-			httpx.NewMockResponse(410, nil, "Gone"),
-			httpx.NewMockResponse(410, nil, "Gone"),
+			httpx.NewMockResponse(410, nil, []byte("Gone")),
+			httpx.NewMockResponse(410, nil, []byte("Gone")),
+			httpx.NewMockResponse(410, nil, []byte("Gone")),
 		},
 	}))
 
@@ -101,7 +102,7 @@ type failingWebhookService struct {
 	delay time.Duration
 }
 
-func (s *failingWebhookService) Call(session flows.Session, request *http.Request) (*flows.WebhookCall, error) {
+func (s *failingWebhookService) Call(request *http.Request) (*flows.WebhookCall, error) {
 	return &flows.WebhookCall{
 		Trace: &httpx.Trace{
 			Request:       request,
@@ -138,14 +139,14 @@ func TestUnhealthyWebhookCalls(t *testing.T) {
 	// webhook service with a 2 second delay
 	svc := &failingWebhookService{delay: 2 * time.Second}
 
-	eng := engine.NewBuilder().WithWebhookServiceFactory(func(flows.Session) (flows.WebhookService, error) { return svc, nil }).Build()
+	eng := engine.NewBuilder().WithWebhookServiceFactory(func(flows.SessionAssets) (flows.WebhookService, error) { return svc, nil }).Build()
 	flowRef := assets.NewFlowReference("bc5d6b7b-3e18-4d7c-8279-50b460e74f7f", "Test")
 
 	handlers.RunFlowAndApplyEvents(t, ctx, rt, env, eng, oa, flowRef, cathy)
 	handlers.RunFlowAndApplyEvents(t, ctx, rt, env, eng, oa, flowRef, cathy)
 
-	healthySeries := redisx.NewSeries("webhooks:healthy", time.Minute*5, 4)
-	unhealthySeries := redisx.NewSeries("webhooks:unhealthy", time.Minute*5, 4)
+	healthySeries := redisx.NewIntervalSeries("webhooks:healthy", time.Minute*5, 4)
+	unhealthySeries := redisx.NewIntervalSeries("webhooks:unhealthy", time.Minute*5, 4)
 
 	total, err := healthySeries.Total(rc, "1bff8fe4-0714-433e-96a3-437405bf21cf")
 	assert.NoError(t, err)
@@ -167,7 +168,7 @@ func TestUnhealthyWebhookCalls(t *testing.T) {
 	total, _ = unhealthySeries.Total(rc, "1bff8fe4-0714-433e-96a3-437405bf21cf")
 	assert.Equal(t, int64(9), total)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM notifications_incident WHERE incident_type = 'webhooks:unhealthy'`).Returns(0)
+	assertdb.Query(t, db, `SELECT count(*) FROM notifications_incident WHERE incident_type = 'webhooks:unhealthy'`).Returns(0)
 
 	// however 1 more bad call means this node is considered unhealthy
 	handlers.RunFlowAndApplyEvents(t, ctx, rt, env, eng, oa, flowRef, cathy)
@@ -178,7 +179,7 @@ func TestUnhealthyWebhookCalls(t *testing.T) {
 	assert.Equal(t, int64(10), total)
 
 	// and now we have an incident
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM notifications_incident WHERE incident_type = 'webhooks:unhealthy'`).Returns(1)
+	assertdb.Query(t, db, `SELECT count(*) FROM notifications_incident WHERE incident_type = 'webhooks:unhealthy'`).Returns(1)
 
 	var incidentID models.IncidentID
 	db.Get(&incidentID, `SELECT id FROM notifications_incident`)
@@ -189,6 +190,6 @@ func TestUnhealthyWebhookCalls(t *testing.T) {
 	// another bad call won't create another incident..
 	handlers.RunFlowAndApplyEvents(t, ctx, rt, env, eng, oa, flowRef, cathy)
 
-	testsuite.AssertQuery(t, db, `SELECT count(*) FROM notifications_incident WHERE incident_type = 'webhooks:unhealthy'`).Returns(1)
+	assertdb.Query(t, db, `SELECT count(*) FROM notifications_incident WHERE incident_type = 'webhooks:unhealthy'`).Returns(1)
 	assertredis.SMembers(t, rp, fmt.Sprintf("incident:%d:nodes", incidentID), []string{"1bff8fe4-0714-433e-96a3-437405bf21cf"})
 }

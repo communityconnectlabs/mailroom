@@ -27,6 +27,7 @@ func handleWebhookCalled(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, 
 		"status":       event.Status,
 		"elapsed_ms":   event.ElapsedMS,
 		"resthook":     event.Resthook,
+		"extraction":   event.Extraction,
 	}).Debug("webhook called")
 
 	// if this was a resthook and the status was 410, that means we should remove it
@@ -41,7 +42,7 @@ func handleWebhookCalled(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, 
 	}
 
 	run, step := scene.Session().FindStep(e.StepUUID())
-	flow, _ := oa.Flow(run.FlowReference().UUID)
+	flow, _ := oa.FlowByUUID(run.FlowReference().UUID)
 
 	// create an HTTP log
 	if flow != nil {

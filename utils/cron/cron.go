@@ -1,33 +1,46 @@
 package cron
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/apex/log"
-	"github.com/gomodule/redigo/redis"
-	"github.com/nyaruka/mailroom/utils/locker"
+	"github.com/nyaruka/mailroom/runtime"
+	"github.com/nyaruka/redisx"
 	"github.com/sirupsen/logrus"
 )
 
 // Function is the function that will be called on our schedule
-type Function func() error
+type Function func(context.Context, *runtime.Runtime) error
 
-// StartCron calls the passed in function every minute, making sure it acquires a
+// Start calls the passed in function every interval, making sure it acquires a
 // lock so that only one process is running at once. Note that across processes
 // crons may be called more often than duration as there is no inter-process
 // coordination of cron fires. (this might be a worthy addition)
-func StartCron(quit chan bool, rp *redis.Pool, name string, interval time.Duration, cronFunc Function) {
-	lockName := fmt.Sprintf("%s_lock", name)
+func Start(rt *runtime.Runtime, wg *sync.WaitGroup, name string, interval time.Duration, allInstances bool, cronFunc Function, timeout time.Duration, quit chan bool) {
+	wg.Add(1) // add ourselves to the wait group
+
+	lockName := fmt.Sprintf("lock:%s_lock", name) // for historical reasons...
+
+	// for jobs that run on all instances, the lock key is specific to this instance
+	if allInstances {
+		lockName = fmt.Sprintf("%s:%s", lockName, rt.Config.InstanceName)
+	}
+
+	locker := redisx.NewLocker(lockName, time.Minute*5)
+
 	wait := time.Duration(0)
 	lastFire := time.Now()
 
 	log := logrus.WithField("cron", name).WithField("lockName", lockName)
 
 	go func() {
-		defer log.Info("cron exiting")
+		defer func() {
+			log.Info("cron exiting")
+			wg.Done()
+		}()
 
-		// we run expiration every minute on the minute
 		for {
 			select {
 			case <-quit:
@@ -35,10 +48,10 @@ func StartCron(quit chan bool, rp *redis.Pool, name string, interval time.Durati
 				return
 
 			case <-time.After(wait):
-				// try to insert our expiring lock to redis
 				lastFire = time.Now()
 
-				lock, err := locker.GrabLock(rp, lockName, time.Minute*5, 0)
+				// try to get lock but don't retry - if lock is taken then task is still running or running on another instance
+				lock, err := locker.Grab(rt.RP, 0)
 				if err != nil {
 					break
 				}
@@ -50,20 +63,27 @@ func StartCron(quit chan bool, rp *redis.Pool, name string, interval time.Durati
 				}
 
 				// ok, got the lock, run our cron function
-				err = fireCron(cronFunc, lockName, lock)
+				start := time.Now()
+				err = fireCron(rt, cronFunc, lockName, lock)
 				if err != nil {
 					log.WithError(err).Error("error while running cron")
 				}
+				elapsed := time.Since(start)
 
 				// release our lock
-				err = locker.ReleaseLock(rp, lockName, lock)
+				err = locker.Release(rt.RP, lock)
 				if err != nil {
 					log.WithError(err).Error("error releasing lock")
+				}
+
+				// if cron too longer than a minute, log
+				if elapsed > time.Minute {
+					logrus.WithField("cron", name).WithField("elapsed", elapsed).Error("cron took too long")
 				}
 			}
 
 			// calculate our next fire time
-			nextFire := nextFire(lastFire, interval)
+			nextFire := NextFire(lastFire, interval)
 			wait = time.Until(nextFire)
 			if wait < time.Duration(0) {
 				wait = time.Duration(0)
@@ -74,8 +94,11 @@ func StartCron(quit chan bool, rp *redis.Pool, name string, interval time.Durati
 
 // fireCron is just a wrapper around the cron function we will call for the purposes of
 // catching and logging panics
-func fireCron(cronFunc Function, lockName string, lockValue string) error {
-	log := log.WithField("lockValue", lockValue).WithField("func", cronFunc)
+func fireCron(rt *runtime.Runtime, cronFunc Function, lockName string, lockValue string) error {
+	log := logrus.WithField("lockValue", lockValue).WithField("func", cronFunc)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancel()
 
 	defer func() {
 		// catch any panics and recover
@@ -85,11 +108,11 @@ func fireCron(cronFunc Function, lockName string, lockValue string) error {
 		}
 	}()
 
-	return cronFunc()
+	return cronFunc(ctx, rt)
 }
 
-// nextFire returns the next time we should fire based on the passed in time and interval
-func nextFire(last time.Time, interval time.Duration) time.Time {
+// NextFire returns the next time we should fire based on the passed in time and interval
+func NextFire(last time.Time, interval time.Duration) time.Time {
 	if interval >= time.Second && interval < time.Minute {
 		normalizedInterval := interval - ((time.Duration(last.Second()) * time.Second) % interval)
 		return last.Add(normalizedInterval)

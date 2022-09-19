@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nyaruka/gocommon/uuids"
 	_ "github.com/nyaruka/mailroom/core/handlers"
 	"github.com/nyaruka/mailroom/core/models"
+	_ "github.com/nyaruka/mailroom/services/tickets/intern"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 	"github.com/nyaruka/mailroom/web"
@@ -37,11 +37,7 @@ func TestModifyContacts(t *testing.T) {
 	db.MustExec(`UPDATE contacts_contactgroup SET query = 'age > 18' WHERE id = $1`, testdata.DoctorsGroup.ID)
 
 	// insert an event on our campaign that is based on created on
-	db.MustExec(
-		`INSERT INTO campaigns_campaignevent(is_active, created_on, modified_on, uuid, "offset", unit, event_type, delivery_hour, 
-											 campaign_id, created_by_id, modified_by_id, flow_id, relative_to_id, start_mode)
-									   VALUES(TRUE, NOW(), NOW(), $1, 1000, 'W', 'F', -1, $2, 1, 1, $3, $4, 'I')`,
-		uuids.New(), testdata.RemindersCampaign.ID, testdata.Favorites.ID, testdata.CreatedOnField.ID)
+	testdata.InsertCampaignFlowEvent(db, testdata.RemindersCampaign, testdata.Favorites, testdata.CreatedOnField, 1000, "W")
 
 	// for simpler tests we clear out cathy's fields and groups to start
 	db.MustExec(`UPDATE contacts_contact SET fields = NULL WHERE id = $1`, testdata.Cathy.ID)
@@ -67,4 +63,19 @@ func TestResolveContacts(t *testing.T) {
 	db.MustExec(`ALTER SEQUENCE contacts_contact_id_seq RESTART WITH 30000`)
 
 	web.RunWebTests(t, ctx, rt, "testdata/resolve.json", nil)
+}
+
+func TestInterruptContact(t *testing.T) {
+	ctx, rt, db, _ := testsuite.Get()
+
+	defer testsuite.Reset(testsuite.ResetData)
+
+	// give Cathy an completed and a waiting session
+	testdata.InsertFlowSession(db, testdata.Org1, testdata.Cathy, models.FlowTypeMessaging, models.SessionStatusCompleted, testdata.Favorites, models.NilConnectionID)
+	testdata.InsertWaitingSession(db, testdata.Org1, testdata.Cathy, models.FlowTypeMessaging, testdata.Favorites, models.NilConnectionID, time.Now(), time.Now().Add(time.Hour), true, nil)
+
+	// give Bob a waiting session
+	testdata.InsertWaitingSession(db, testdata.Org1, testdata.Bob, models.FlowTypeMessaging, testdata.PickANumber, models.NilConnectionID, time.Now(), time.Now().Add(time.Hour), true, nil)
+
+	web.RunWebTests(t, ctx, rt, "testdata/interrupt.json", nil)
 }
