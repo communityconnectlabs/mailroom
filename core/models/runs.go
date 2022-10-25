@@ -13,12 +13,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/nyaruka/gocommon/storage"
 	"github.com/nyaruka/gocommon/uuids"
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/envs"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/flows/events"
-	"github.com/nyaruka/mailroom/config"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/envs"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/flows/events"
 	"github.com/nyaruka/mailroom/core/goflow"
+	"github.com/nyaruka/mailroom/runtime"
 	"github.com/nyaruka/null"
 
 	"github.com/gomodule/redigo/redis"
@@ -140,6 +140,8 @@ type Session struct {
 
 	// we also keep around a reference to the wait (if any)
 	wait flows.ActivatedWait
+
+	findStep func(flows.StepUUID) (flows.FlowRun, flows.Step)
 }
 
 func (s *Session) ID() SessionID                      { return s.s.ID }
@@ -164,20 +166,20 @@ func (s *Session) Scene() *Scene                      { return s.scene }
 
 // WriteSessionsToStorage writes the outputs of the passed in sessions to our storage (S3), updating the
 // output_url for each on success. Failure of any will cause all to fail.
-func WriteSessionOutputsToStorage(ctx context.Context, st storage.Storage, sessions []*Session) error {
+func WriteSessionOutputsToStorage(ctx context.Context, rt *runtime.Runtime, sessions []*Session) error {
 	start := time.Now()
 
 	uploads := make([]*storage.Upload, len(sessions))
 	for i, s := range sessions {
 		uploads[i] = &storage.Upload{
-			Path:        s.StoragePath(config.Mailroom),
+			Path:        s.StoragePath(rt.Config),
 			Body:        []byte(s.Output()),
 			ContentType: "application/json",
 			ACL:         s3.ObjectCannedACLPrivate,
 		}
 	}
 
-	err := st.BatchPut(ctx, uploads)
+	err := rt.SessionStorage.BatchPut(ctx, uploads)
 	if err != nil {
 		return errors.Wrapf(err, "error writing sessions to storage")
 	}
@@ -194,7 +196,7 @@ func WriteSessionOutputsToStorage(ctx context.Context, st storage.Storage, sessi
 const storageTSFormat = "20060102T150405.999Z"
 
 // StoragePath returns the path for the session
-func (s *Session) StoragePath(cfg *config.Config) string {
+func (s *Session) StoragePath(cfg *runtime.Config) string {
 	ts := s.CreatedOn().UTC().Format(storageTSFormat)
 
 	// example output: /orgs/1/c/20a5/20a5534c-b2ad-4f18-973a-f1aa3b4e6c74/session_20060102T150405.123Z_8a7fc501-177b-4567-a0aa-81c48e6de1c5_51df83ac21d3cf136d8341f0b11cb1a7.json"
@@ -232,6 +234,11 @@ func (s *Session) Sprint() flows.Sprint {
 // Wait returns the wait associated with this session (if any)
 func (s *Session) Wait() flows.ActivatedWait {
 	return s.wait
+}
+
+// FindStep finds the run and step with the given UUID
+func (s *Session) FindStep(uuid flows.StepUUID) (flows.FlowRun, flows.Step) {
+	return s.findStep(uuid)
 }
 
 // Timeout returns the amount of time after our last message sends that we should timeout
@@ -384,6 +391,7 @@ func NewSession(ctx context.Context, tx *sqlx.Tx, org *OrgAssets, fs flows.Sessi
 
 	session.sprint = sprint
 	session.wait = fs.Wait()
+	session.findStep = fs.FindStep
 
 	// now build up our runs
 	for _, r := range fs.Runs() {
@@ -429,34 +437,28 @@ func ActiveSessionForContact(ctx context.Context, db *sqlx.DB, st storage.Storag
 		contact: contact,
 	}
 	session.scene = NewSceneForSession(session)
-	err = rows.StructScan(&session.s)
-	if err != nil {
+
+	if err := rows.StructScan(&session.s); err != nil {
 		return nil, errors.Wrapf(err, "error scanning session")
 	}
 
-	// load our output if necessary
-	if org.Org().SessionStorageMode() == S3Sessions && session.OutputURL() != "" {
-		start := time.Now()
-
+	// load our output from storage if necessary
+	if session.OutputURL() != "" {
 		// strip just the path out of our output URL
 		u, err := url.Parse(session.OutputURL())
 		if err != nil {
 			return nil, errors.Wrapf(err, "error parsing output URL: %s", session.OutputURL())
 		}
 
-		// get our session from storage
+		start := time.Now()
+
 		_, output, err := st.Get(ctx, u.Path)
 		if err != nil {
-			logrus.WithField("output_url", session.OutputURL()).WithField("org_id", org.OrgID()).WithField("session_uuid", session.UUID()).WithError(err).Error("error reading in session output from storage")
-
-			// we'll throw an error up only if we don't have a DB backdown
-			if session.Output() == "" {
-				return nil, errors.Wrapf(err, "error reading session from storage: %s", session.OutputURL())
-			}
-		} else {
-			session.s.Output = null.String(output)
-			logrus.WithField("elapsed", time.Since(start)).WithField("output_url", session.OutputURL()).Debug("loaded session from storage")
+			return nil, errors.Wrapf(err, "error reading session from storage: %s", session.OutputURL())
 		}
+
+		logrus.WithField("elapsed", time.Since(start)).WithField("output_url", session.OutputURL()).Debug("loaded session from storage")
+		session.s.Output = null.String(output)
 	}
 
 	return session, nil
@@ -504,9 +506,23 @@ INSERT INTO
 RETURNING id
 `
 
+const insertCompleteSessionSQLNoOutput = `
+INSERT INTO
+	flows_flowsession( uuid, session_type, status, responded, output_url, contact_id, org_id, created_on, ended_on, wait_started_on, connection_id)
+               VALUES(:uuid,:session_type,:status,:responded, :output_url,:contact_id,:org_id, NOW(),      NOW(),    NULL,           :connection_id)
+RETURNING id
+`
+
+const insertIncompleteSessionSQLNoOutput = `
+INSERT INTO
+	flows_flowsession( uuid, session_type, status, responded,  output_url, contact_id, org_id, created_on, current_flow_id, timeout_on, wait_started_on, connection_id)
+               VALUES(:uuid,:session_type,:status,:responded, :output_url,:contact_id,:org_id, NOW(),     :current_flow_id,:timeout_on,:wait_started_on,:connection_id)
+RETURNING id
+`
+
 // FlowSession creates a flow session for the passed in session object. It also populates the runs we know about
-func (s *Session) FlowSession(sa flows.SessionAssets, env envs.Environment) (flows.Session, error) {
-	session, err := goflow.Engine(config.Mailroom).ReadSession(sa, json.RawMessage(s.s.Output), assets.IgnoreMissing)
+func (s *Session) FlowSession(cfg *runtime.Config, sa flows.SessionAssets, env envs.Environment) (flows.Session, error) {
+	session, err := goflow.Engine(cfg).ReadSession(sa, json.RawMessage(s.s.Output), assets.IgnoreMissing)
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to unmarshal session")
 	}
@@ -540,7 +556,7 @@ func (s *Session) calculateTimeout(fs flows.Session, sprint flows.Sprint) {
 }
 
 // WriteUpdatedSession updates the session based on the state passed in from our engine session, this also takes care of applying any event hooks
-func (s *Session) WriteUpdatedSession(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, st storage.Storage, org *OrgAssets, fs flows.Session, sprint flows.Sprint, hook SessionCommitHook) error {
+func (s *Session) WriteUpdatedSession(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, org *OrgAssets, fs flows.Session, sprint flows.Sprint, hook SessionCommitHook) error {
 	// make sure we have our seen runs
 	if s.seenRuns == nil {
 		return errors.Errorf("missing seen runs, cannot update session")
@@ -573,9 +589,10 @@ func (s *Session) WriteUpdatedSession(ctx context.Context, tx *sqlx.Tx, rp *redi
 	// calculate our new timeout
 	s.calculateTimeout(fs, sprint)
 
-	// set our sprint and wait
+	// set our sprint, wait and step finder
 	s.sprint = sprint
 	s.wait = fs.Wait()
+	s.findStep = fs.FindStep
 
 	// run through our runs to figure out our current flow
 	for _, r := range fs.Runs() {
@@ -602,23 +619,29 @@ func (s *Session) WriteUpdatedSession(ctx context.Context, tx *sqlx.Tx, rp *redi
 
 	// apply all our pre write events
 	for _, e := range sprint.Events() {
-		err := ApplyPreWriteEvent(ctx, tx, rp, org, s.scene, e)
+		err := ApplyPreWriteEvent(ctx, rt, tx, org, s.scene, e)
 		if err != nil {
 			return errors.Wrapf(err, "error applying event: %v", e)
 		}
 	}
 
+	// the SQL statement we'll use to update this session
+	updateSQL := updateSessionSQL
+
 	// if writing to S3, do so
 	sessionMode := org.Org().SessionStorageMode()
-	if sessionMode == S3Sessions || sessionMode == S3WriteSessions {
-		err := WriteSessionOutputsToStorage(ctx, st, []*Session{s})
+	if sessionMode == S3Sessions {
+		err := WriteSessionOutputsToStorage(ctx, rt, []*Session{s})
 		if err != nil {
 			logrus.WithError(err).Error("error writing session to s3")
 		}
+
+		// don't write output in our SQL
+		updateSQL = updateSessionSQLNoOutput
 	}
 
 	// write our new session state to the db
-	_, err = tx.NamedExecContext(ctx, updateSessionSQL, s.s)
+	_, err = tx.NamedExecContext(ctx, updateSQL, s.s)
 	if err != nil {
 		return errors.Wrapf(err, "error updating session")
 	}
@@ -651,7 +674,7 @@ func (s *Session) WriteUpdatedSession(ctx context.Context, tx *sqlx.Tx, rp *redi
 
 	// call our global pre commit hook if present
 	if hook != nil {
-		err := hook(ctx, tx, rp, org, []*Session{s})
+		err := hook(ctx, tx, rt.RP, org, []*Session{s})
 		if err != nil {
 			return errors.Wrapf(err, "error calling commit hook: %v", hook)
 		}
@@ -672,14 +695,14 @@ func (s *Session) WriteUpdatedSession(ctx context.Context, tx *sqlx.Tx, rp *redi
 
 	// apply all our events
 	if s.Status() != SessionStatusFailed {
-		err = HandleEvents(ctx, tx, rp, org, s.scene, sprint.Events())
+		err = HandleEvents(ctx, rt, tx, org, s.scene, sprint.Events())
 		if err != nil {
 			return errors.Wrapf(err, "error applying events: %d", s.ID())
 		}
 	}
 
 	// gather all our pre commit events, group them by hook and apply them
-	err = ApplyEventPreCommitHooks(ctx, tx, rp, org, []*Scene{s.scene})
+	err = ApplyEventPreCommitHooks(ctx, rt, tx, org, []*Scene{s.scene})
 	if err != nil {
 		return errors.Wrapf(err, "error applying pre commit hook: %T", hook)
 	}
@@ -692,6 +715,21 @@ UPDATE
 	flows_flowsession
 SET 
 	output = :output, 
+	output_url = :output_url,
+	status = :status, 
+	ended_on = CASE WHEN :status = 'W' THEN NULL ELSE NOW() END,
+	responded = :responded,
+	current_flow_id = :current_flow_id,
+	timeout_on = :timeout_on,
+	wait_started_on = :wait_started_on
+WHERE 
+	id = :id
+`
+
+const updateSessionSQLNoOutput = `
+UPDATE 
+	flows_flowsession
+SET 
 	output_url = :output_url,
 	status = :status, 
 	ended_on = CASE WHEN :status = 'W' THEN NULL ELSE NOW() END,
@@ -728,7 +766,7 @@ WHERE
 
 // WriteSessions writes the passed in session to our database, writes any runs that need to be created
 // as well as appying any events created in the session
-func WriteSessions(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, st storage.Storage, org *OrgAssets, ss []flows.Session, sprints []flows.Sprint, hook SessionCommitHook) ([]*Session, error) {
+func WriteSessions(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, org *OrgAssets, ss []flows.Session, sprints []flows.Sprint, hook SessionCommitHook) ([]*Session, error) {
 	if len(ss) == 0 {
 		return nil, nil
 	}
@@ -758,7 +796,7 @@ func WriteSessions(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, st storage.
 	// apply all our pre write events
 	for i := range ss {
 		for _, e := range sprints[i].Events() {
-			err := ApplyPreWriteEvent(ctx, tx, rp, org, sessions[i].scene, e)
+			err := ApplyPreWriteEvent(ctx, rt, tx, org, sessions[i].scene, e)
 			if err != nil {
 				return nil, errors.Wrapf(err, "error applying event: %v", e)
 			}
@@ -767,24 +805,31 @@ func WriteSessions(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, st storage.
 
 	// call our global pre commit hook if present
 	if hook != nil {
-		err := hook(ctx, tx, rp, org, sessions)
+		err := hook(ctx, tx, rt.RP, org, sessions)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error calling commit hook: %v", hook)
 		}
 	}
 
+	// the SQL we'll use to do our insert of complete sessions
+	insertCompleteSQL := insertCompleteSessionSQL
+	insertIncompleteSQL := insertIncompleteSessionSQL
+
 	// if writing our sessions to S3, do so
 	sessionMode := org.Org().SessionStorageMode()
-	if sessionMode == S3Sessions || sessionMode == S3WriteSessions {
-		err := WriteSessionOutputsToStorage(ctx, st, sessions)
+	if sessionMode == S3Sessions {
+		err := WriteSessionOutputsToStorage(ctx, rt, sessions)
 		if err != nil {
 			// for now, continue on for errors, we are still reading from the DB
 			logrus.WithError(err).Error("error writing sessions to s3")
 		}
+
+		insertCompleteSQL = insertCompleteSessionSQLNoOutput
+		insertIncompleteSQL = insertIncompleteSessionSQLNoOutput
 	}
 
 	// insert our complete sessions first
-	err := BulkQuery(ctx, "insert completed sessions", tx, insertCompleteSessionSQL, completeSessionsI)
+	err := BulkQuery(ctx, "insert completed sessions", tx, insertCompleteSQL, completeSessionsI)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error inserting completed sessions")
 	}
@@ -796,7 +841,7 @@ func WriteSessions(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, st storage.
 	}
 
 	// insert incomplete sessions
-	err = BulkQuery(ctx, "insert incomplete sessions", tx, insertIncompleteSessionSQL, incompleteSessionsI)
+	err = BulkQuery(ctx, "insert incomplete sessions", tx, insertIncompleteSQL, incompleteSessionsI)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error inserting incomplete sessions")
 	}
@@ -825,7 +870,7 @@ func WriteSessions(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, st storage.
 			continue
 		}
 
-		err = HandleEvents(ctx, tx, rp, org, sessions[i].Scene(), sprints[i].Events())
+		err = HandleEvents(ctx, rt, tx, org, sessions[i].Scene(), sprints[i].Events())
 		if err != nil {
 			return nil, errors.Wrapf(err, "error applying events for session: %d", sessions[i].ID())
 		}
@@ -835,7 +880,7 @@ func WriteSessions(ctx context.Context, tx *sqlx.Tx, rp *redis.Pool, st storage.
 	}
 
 	// gather all our pre commit events, group them by hook
-	err = ApplyEventPreCommitHooks(ctx, tx, rp, org, scenes)
+	err = ApplyEventPreCommitHooks(ctx, rt, tx, org, scenes)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error applying pre commit hook: %T", hook)
 	}

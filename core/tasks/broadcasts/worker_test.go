@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/envs"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/flows/events"
 	"github.com/nyaruka/gocommon/urns"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/envs"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/flows/events"
 	_ "github.com/nyaruka/mailroom/core/handlers"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/core/queue"
@@ -17,15 +17,16 @@ import (
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBroadcastEvents(t *testing.T) {
-	ctx, _, db, rp := testsuite.Reset()
+	ctx, rt, db, rp := testsuite.Get()
 	rc := rp.Get()
 	defer rc.Close()
 
-	oa, err := models.GetOrgAssets(ctx, db, testdata.Org1.ID)
+	defer testsuite.Reset(testsuite.ResetAll)
+
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
 	assert.NoError(t, err)
 
 	eng := envs.Language("eng")
@@ -83,7 +84,7 @@ func TestBroadcastEvents(t *testing.T) {
 		bcast, err := models.NewBroadcastFromEvent(ctx, db, oa, event)
 		assert.NoError(t, err)
 
-		err = CreateBroadcastBatches(ctx, db, rp, bcast)
+		err = CreateBroadcastBatches(ctx, rt, bcast)
 		assert.NoError(t, err)
 
 		// pop all our tasks and execute them
@@ -102,7 +103,7 @@ func TestBroadcastEvents(t *testing.T) {
 			err = json.Unmarshal(task.Task, batch)
 			assert.NoError(t, err)
 
-			err = SendBroadcastBatch(ctx, db, rp, batch)
+			err = SendBroadcastBatch(ctx, rt, batch)
 			assert.NoError(t, err)
 		}
 
@@ -119,22 +120,20 @@ func TestBroadcastEvents(t *testing.T) {
 }
 
 func TestBroadcastTask(t *testing.T) {
-	ctx, _, db, rp := testsuite.Reset()
+	ctx, rt, db, rp := testsuite.Get()
 	rc := rp.Get()
 	defer rc.Close()
 
-	oa, err := models.GetOrgAssets(ctx, db, testdata.Org1.ID)
+	defer testsuite.Reset(testsuite.ResetAll)
+
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
 	assert.NoError(t, err)
 	eng := envs.Language("eng")
 
 	// insert a broadcast so we can check it is being set to sent
-	var legacyID models.BroadcastID
-	err = db.Get(&legacyID,
-		`INSERT INTO msgs_broadcast(status, text, base_language, created_on, modified_on, send_all, created_by_id, modified_by_id, org_id)
-							 VALUES('P', '"base"=>"hi @(PROPER(contact.name)) legacy"'::hstore, 'base', NOW(), NOW(), FALSE, 1, 1, 1) RETURNING id`)
-	require.NoError(t, err)
+	legacyID := testdata.InsertBroadcast(db, testdata.Org1, "base", map[envs.Language]string{"base": "hi @(PROPER(contact.name)) legacy"}, models.NilScheduleID, nil, nil)
 
-	ticket := testdata.InsertOpenTicket(db, testdata.Org1, testdata.Cathy, testdata.Mailgun, "Problem", "", "", nil)
+	ticket := testdata.InsertOpenTicket(db, testdata.Org1, testdata.Cathy, testdata.Mailgun, testdata.DefaultTopic, "", "", nil)
 	modelTicket := ticket.Load(db)
 
 	evaluated := map[envs.Language]*models.BroadcastTranslation{
@@ -231,7 +230,7 @@ func TestBroadcastTask(t *testing.T) {
 	for i, tc := range tcs {
 		// handle our start task
 		bcast := models.NewBroadcast(oa.OrgID(), tc.BroadcastID, tc.Translations, tc.TemplateState, tc.BaseLanguage, tc.URNs, tc.ContactIDs, tc.GroupIDs, tc.TicketID)
-		err = CreateBroadcastBatches(ctx, db, rp, bcast)
+		err = CreateBroadcastBatches(ctx, rt, bcast)
 		assert.NoError(t, err)
 
 		// pop all our tasks and execute them
@@ -250,7 +249,7 @@ func TestBroadcastTask(t *testing.T) {
 			err = json.Unmarshal(task.Task, batch)
 			assert.NoError(t, err)
 
-			err = SendBroadcastBatch(ctx, db, rp, batch)
+			err = SendBroadcastBatch(ctx, rt, batch)
 			assert.NoError(t, err)
 		}
 

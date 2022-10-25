@@ -7,10 +7,10 @@ import (
 
 	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/gocommon/urns"
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/envs"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/utils"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/envs"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/utils"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
@@ -20,7 +20,7 @@ import (
 )
 
 func TestOutgoingMsgs(t *testing.T) {
-	ctx, _, db, _ := testsuite.Get()
+	ctx, rt, db, _ := testsuite.Get()
 
 	tcs := []struct {
 		ChannelUUID  assets.ChannelUUID
@@ -96,13 +96,13 @@ func TestOutgoingMsgs(t *testing.T) {
 
 		db.MustExec(`UPDATE orgs_org SET is_suspended = $1 WHERE id = $2`, tc.SuspendedOrg, testdata.Org1.ID)
 
-		oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshOrg)
+		oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, testdata.Org1.ID, models.RefreshOrg)
 		require.NoError(t, err)
 
 		channel := oa.ChannelByUUID(tc.ChannelUUID)
 
 		flowMsg := flows.NewMsgOut(tc.URN, assets.NewChannelReference(tc.ChannelUUID, "Test Channel"), tc.Text, tc.Attachments, tc.QuickReplies, nil, tc.Topic, "", flows.ShareableIconsConfig{})
-		msg, err := models.NewOutgoingMsg(oa.Org(), channel, tc.ContactID, flowMsg, now)
+		msg, err := models.NewOutgoingMsg(rt.Config, channel, tc.ContactID, flowMsg, now)
 
 		if tc.HasError {
 			assert.Error(t, err)
@@ -176,11 +176,11 @@ func TestLoadMessages(t *testing.T) {
 }
 
 func TestResendMessages(t *testing.T) {
-	ctx, _, db, rp := testsuite.Get()
+	ctx, rt, db, rp := testsuite.Get()
 
-	defer testsuite.Reset()
+	defer testsuite.Reset(testsuite.ResetAll)
 
-	oa, err := models.GetOrgAssets(ctx, db, testdata.Org1.ID)
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
 	require.NoError(t, err)
 
 	msgOut1 := testdata.InsertOutgoingMsg(db, testdata.Org1, testdata.TwilioChannel, testdata.Cathy, "out 1", nil, models.MsgStatusFailed)
@@ -233,10 +233,11 @@ func TestNormalizeAttachment(t *testing.T) {
 }
 
 func TestMarkMessages(t *testing.T) {
-	ctx, _, db, _ := testsuite.Reset()
-	defer testsuite.Reset()
+	ctx, rt, db, _ := testsuite.Get()
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshOrg)
+	defer testsuite.Reset(testsuite.ResetAll)
+
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, testdata.Org1.ID, models.RefreshOrg)
 	require.NoError(t, err)
 
 	channel := oa.ChannelByUUID(testdata.TwilioChannel.UUID)
@@ -244,7 +245,7 @@ func TestMarkMessages(t *testing.T) {
 	insertMsg := func(text string) *models.Msg {
 		urn := urns.URN(fmt.Sprintf("tel:+250700000001?id=%d", testdata.Cathy.URNID))
 		flowMsg := flows.NewMsgOut(urn, channel.ChannelReference(), text, nil, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})
-		msg, err := models.NewOutgoingMsg(oa.Org(), channel, testdata.Cathy.ID, flowMsg, time.Now())
+		msg, err := models.NewOutgoingMsg(rt.Config, channel, testdata.Cathy.ID, flowMsg, time.Now())
 		require.NoError(t, err)
 
 		err = models.InsertMessages(ctx, db, []*models.Msg{msg})
@@ -262,10 +263,8 @@ func TestMarkMessages(t *testing.T) {
 	testsuite.AssertQuery(t, db, `SELECT count(*) FROM msgs_msg WHERE status = 'P'`).Returns(2)
 
 	// try running on database with BIGINT message ids
-	db.MustExec(`ALTER TABLE "msgs_msg" ALTER COLUMN "id" TYPE bigint USING "id"::bigint;`)
 	db.MustExec(`ALTER SEQUENCE "msgs_msg_id_seq" AS bigint;`)
 	db.MustExec(`ALTER SEQUENCE "msgs_msg_id_seq" RESTART WITH 3000000000;`)
-	db = testsuite.DB() // need new connection after changes
 
 	msg4 := insertMsg("Big messages!")
 	assert.Equal(t, flows.MsgID(3000000000), msg4.ID())
@@ -293,14 +292,11 @@ func TestSelectContactMessages(t *testing.T) {
 }
 
 func TestNonPersistentBroadcasts(t *testing.T) {
-	ctx, _, db, rp := testsuite.Reset()
+	ctx, rt, db, _ := testsuite.Get()
 
-	defer func() {
-		db.MustExec(`DELETE FROM msgs_msg`)
-		db.MustExec(`DELETE FROM tickets_ticket`)
-	}()
+	defer testsuite.Reset(testsuite.ResetData)
 
-	ticket := testdata.InsertOpenTicket(db, testdata.Org1, testdata.Bob, testdata.Mailgun, "Problem", "", "", nil)
+	ticket := testdata.InsertOpenTicket(db, testdata.Org1, testdata.Bob, testdata.Mailgun, testdata.DefaultTopic, "", "", nil)
 	modelTicket := ticket.Load(db)
 
 	translations := map[envs.Language]*models.BroadcastTranslation{envs.Language("eng"): {Text: "Hi there"}}
@@ -338,10 +334,10 @@ func TestNonPersistentBroadcasts(t *testing.T) {
 	assert.Equal(t, ticket.ID, batch.TicketID())
 	assert.Equal(t, []models.ContactID{testdata.Alexandria.ID, testdata.Bob.ID}, batch.ContactIDs())
 
-	oa, err := models.GetOrgAssets(ctx, db, testdata.Org1.ID)
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
 	require.NoError(t, err)
 
-	msgs, err := models.CreateBroadcastMessages(ctx, db, rp, oa, batch)
+	msgs, err := models.CreateBroadcastMessages(ctx, rt, oa, batch)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, len(msgs))
@@ -350,4 +346,31 @@ func TestNonPersistentBroadcasts(t *testing.T) {
 
 	// test ticket was updated
 	testsuite.AssertQuery(t, db, `SELECT count(*) FROM tickets_ticket WHERE id = $1 AND last_activity_on > $2`, ticket.ID, modelTicket.LastActivityOn()).Returns(1)
+}
+
+func TestNewOutgoingIVR(t *testing.T) {
+	ctx, rt, db, _ := testsuite.Get()
+
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
+	require.NoError(t, err)
+
+	vonage := oa.ChannelByUUID(testdata.VonageChannel.UUID)
+	conn, err := models.InsertIVRConnection(ctx, db, testdata.Org1.ID, testdata.VonageChannel.ID, models.NilStartID, testdata.Cathy.ID, testdata.Cathy.URNID, models.ConnectionDirectionOut, models.ConnectionStatusInProgress, "")
+	require.NoError(t, err)
+
+	createdOn := time.Date(2021, 7, 26, 12, 6, 30, 0, time.UTC)
+
+	flowMsg := flows.NewMsgOut(testdata.Cathy.URN, vonage.ChannelReference(), "Hello", []utils.Attachment{"audio/mp3:http://example.com/hi.mp3"}, nil, nil, flows.NilMsgTopic)
+	dbMsg := models.NewOutgoingIVR(rt.Config, testdata.Org1.ID, conn, flowMsg, createdOn)
+
+	assert.Equal(t, flowMsg.UUID(), dbMsg.UUID())
+	assert.Equal(t, "Hello", dbMsg.Text())
+	assert.Equal(t, []utils.Attachment{"audio/mp3:http://example.com/hi.mp3"}, dbMsg.Attachments())
+	assert.Equal(t, createdOn, dbMsg.CreatedOn())
+	assert.Equal(t, &createdOn, dbMsg.SentOn())
+
+	err = models.InsertMessages(ctx, db, []*models.Msg{dbMsg})
+	require.NoError(t, err)
+
+	testsuite.AssertQuery(t, db, `SELECT text, created_on, sent_on FROM msgs_msg WHERE uuid = $1`, dbMsg.UUID()).Columns(map[string]interface{}{"text": "Hello", "created_on": createdOn, "sent_on": createdOn})
 }

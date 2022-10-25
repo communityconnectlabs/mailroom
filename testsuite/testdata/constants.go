@@ -1,8 +1,8 @@
 package testdata
 
 import (
-	"github.com/greatnonprofits-nfp/goflow/assets"
 	"github.com/nyaruka/gocommon/uuids"
+	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/mailroom/core/models"
 )
 
@@ -16,6 +16,13 @@ type Org struct {
 type User struct {
 	ID    models.UserID
 	Email string
+}
+
+func (u *User) SafeID() models.UserID {
+	if u != nil {
+		return u.ID
+	}
+	return models.NilUserID
 }
 
 type Classifier struct {
@@ -57,11 +64,11 @@ var IncomingExtraFlow = &Flow{10006, "376d3de6-7f0e-408c-80d6-b1919738bc80"}
 var ParentTimeoutFlow = &Flow{10007, "81c0f323-7e06-4e0c-a960-19c20f17117c"}
 var CampaignFlow = &Flow{10009, "3a92a964-3a8d-420b-9206-2cd9d884ac30"}
 
-var CreatedOnField = &Field{3, "fd18a69d-7514-4b76-9fad-072641995e17"}
-var LastSeenOnField = &Field{5, "660ebe03-b717-4a80-aebf-9b7c718266e1"}
-var GenderField = &Field{8, "3a5891e4-756e-4dc9-8e12-b7a766168824"}
-var AgeField = &Field{9, "903f51da-2717-47c7-a0d3-f2f32877013d"}
-var JoinedField = &Field{10, "d83aae24-4bbf-49d0-ab85-6bfd201eac6d"}
+var CreatedOnField = &Field{3, "53499958-0a0a-48a5-bb5f-8f9f4d8af77b"}
+var LastSeenOnField = &Field{5, "4307df2e-b00b-42b6-922b-4a1dcfc268d8"}
+var GenderField = &Field{6, "3a5891e4-756e-4dc9-8e12-b7a766168824"}
+var AgeField = &Field{7, "903f51da-2717-47c7-a0d3-f2f32877013d"}
+var JoinedField = &Field{8, "d83aae24-4bbf-49d0-ab85-6bfd201eac6d"}
 
 var AllContactsGroup = &Group{1, "d1ee73f0-bdb5-47ce-99dd-0c95d4ebf008"}
 var BlockedContactsGroup = &Group{2, "9295ebab-5c2d-4eb1-86f9-7c15ed2f3219"}
@@ -71,12 +78,16 @@ var TestersGroup = &Group{10001, "5e9d8fab-5e7e-4f51-b533-261af5dea70d"}
 var ReportingLabel = &Label{10000, "ebc4dedc-91c4-4ed4-9dd6-daa05ea82698"}
 var TestingLabel = &Label{10001, "a6338cdc-7938-4437-8b05-2d5d785e3a08"}
 
-var Mailgun = &Ticketer{1, "f9c9447f-a291-4f3c-8c79-c089bbd4e713"}
-var Zendesk = &Ticketer{2, "4ee6d4f3-f92b-439b-9718-8da90c05490b"}
-var RocketChat = &Ticketer{3, "6c50665f-b4ff-4e37-9625-bc464fe6a999"}
-var Twilioflex = &Ticketer{4, "07d1b73e-2e36-4c0a-9cb8-6baf714c09e4"}
-var Amazonconnect = &Ticketer{5, "a1b9c62a-357c-4f1f-9de0-6b07fbb6b6bb"}
-var Internal = &Ticketer{6, "8bd48029-6ca1-46a8-aa14-68f7213b82b3"}
+var DefaultTopic = &Topic{1, "ffc903f7-8cbb-443f-9627-87106842d1aa"}
+var SalesTopic = &Topic{2, "9ef2ff21-064a-41f1-8560-ccc990b4f937"}
+var SupportTopic = &Topic{3, "0a8f2e00-fef6-402c-bd79-d789446ec0e0"}
+
+var Internal = &Ticketer{1, "8bd48029-6ca1-46a8-aa14-68f7213b82b3"}
+var Mailgun = &Ticketer{2, "f9c9447f-a291-4f3c-8c79-c089bbd4e713"}
+var Zendesk = &Ticketer{3, "4ee6d4f3-f92b-439b-9718-8da90c05490b"}
+var RocketChat = &Ticketer{4, "6c50665f-b4ff-4e37-9625-bc464fe6a999"}
+var Twilioflex = &Ticketer{5, "07d1b73e-2e36-4c0a-9cb8-6baf714c09e4"}
+var Amazonconnect = &Ticketer{6, "a1b9c62a-357c-4f1f-9de0-6b07fbb6b6bb"}
 
 var Luis = &Classifier{1, "097e026c-ae79-4740-af67-656dbedf0263"}
 var Wit = &Classifier{2, "ff2a817c-040a-4eb2-8404-7d92e8b79dd0"}

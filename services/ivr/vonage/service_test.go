@@ -1,27 +1,19 @@
 package vonage
 
 import (
-	"bytes"
-	"context"
-	"fmt"
-	"github.com/gomodule/redigo/redis"
-	"github.com/jmoiron/sqlx"
-	"github.com/nyaruka/gocommon/httpx"
-	"github.com/nyaruka/mailroom/core/ivr"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/flows/events"
-	"github.com/greatnonprofits-nfp/goflow/flows/routers/waits"
-	"github.com/greatnonprofits-nfp/goflow/flows/routers/waits/hints"
-	"github.com/greatnonprofits-nfp/goflow/utils"
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/gocommon/uuids"
-	"github.com/nyaruka/mailroom/config"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/flows/events"
+	"github.com/nyaruka/goflow/flows/routers/waits"
+	"github.com/nyaruka/goflow/flows/routers/waits/hints"
+	"github.com/nyaruka/goflow/utils"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
@@ -30,9 +22,9 @@ import (
 )
 
 func TestResponseForSprint(t *testing.T) {
-	ctx, _, db, rp := testsuite.Get()
+	ctx, rt, db, rp := testsuite.Get()
 
-	defer testsuite.Reset()
+	defer testsuite.Reset(testsuite.ResetAll)
 
 	rc := rp.Get()
 	defer rc.Close()
@@ -51,20 +43,16 @@ func TestResponseForSprint(t *testing.T) {
 	// set our UUID generator
 	uuids.SetGenerator(uuids.NewSeededGenerator(0))
 
-	// set our attachment domain for testing
-	config.Mailroom.AttachmentDomain = "mailroom.io"
-	defer func() { config.Mailroom.AttachmentDomain = "" }()
-
-	oa, err := models.GetOrgAssets(ctx, db, testdata.Org1.ID)
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
 	assert.NoError(t, err)
 
 	channel := oa.ChannelByUUID(testdata.VonageChannel.UUID)
 	assert.NotNil(t, channel)
 
-	c, err := NewClientFromChannel(http.DefaultClient, channel)
+	p, err := NewServiceFromChannel(http.DefaultClient, channel)
 	assert.NoError(t, err)
 
-	client := c.(*client)
+	provider := p.(*service)
 
 	indentMarshal = false
 
@@ -114,7 +102,7 @@ func TestResponseForSprint(t *testing.T) {
 	}
 
 	for i, tc := range tcs {
-		response, err := client.responseForSprint(ctx, rp, channel, nil, resumeURL, tc.Wait, tc.Events)
+		response, err := provider.responseForSprint(ctx, rp, channel, nil, resumeURL, tc.Wait, tc.Events)
 		assert.NoError(t, err, "%d: unexpected error")
 		assert.Equal(t, tc.Expected, response, "%d: unexpected response", i)
 	}

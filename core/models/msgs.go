@@ -12,15 +12,15 @@ import (
 	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/gocommon/gsm7"
 	"github.com/nyaruka/gocommon/urns"
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/envs"
-	"github.com/greatnonprofits-nfp/goflow/excellent"
-	"github.com/greatnonprofits-nfp/goflow/excellent/types"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/flows/definition/legacy/expressions"
-	"github.com/greatnonprofits-nfp/goflow/flows/events"
-	"github.com/greatnonprofits-nfp/goflow/utils"
-	"github.com/nyaruka/mailroom/config"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/envs"
+	"github.com/nyaruka/goflow/excellent"
+	"github.com/nyaruka/goflow/excellent/types"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/flows/definition/legacy/expressions"
+	"github.com/nyaruka/goflow/flows/events"
+	"github.com/nyaruka/goflow/utils"
+	"github.com/nyaruka/mailroom/runtime"
 	"github.com/nyaruka/null"
 
 	"github.com/gomodule/redigo/redis"
@@ -80,6 +80,7 @@ const (
 	MsgStatusQueued       = MsgStatus("Q")
 	MsgStatusWired        = MsgStatus("W")
 	MsgStatusSent         = MsgStatus("S")
+	MsgStatusDelivered    = MsgStatus("D")
 	MsgStatusHandled      = MsgStatus("H")
 	MsgStatusErrored      = MsgStatus("E")
 	MsgStatusFailed       = MsgStatus("F")
@@ -106,7 +107,7 @@ type Msg struct {
 		HighPriority         bool               `db:"high_priority"   json:"high_priority"`
 		CreatedOn            time.Time          `db:"created_on"      json:"created_on"`
 		ModifiedOn           time.Time          `db:"modified_on"     json:"modified_on"`
-		SentOn               time.Time          `db:"sent_on"         json:"sent_on"`
+		SentOn               *time.Time         `db:"sent_on"         json:"sent_on"`
 		QueuedOn             time.Time          `db:"queued_on"       json:"queued_on"`
 		Direction            MsgDirection       `db:"direction"       json:"direction"`
 		Status               MsgStatus          `db:"status"          json:"status"`
@@ -152,7 +153,7 @@ func (m *Msg) Text() string                     { return m.m.Text }
 func (m *Msg) HighPriority() bool               { return m.m.HighPriority }
 func (m *Msg) CreatedOn() time.Time             { return m.m.CreatedOn }
 func (m *Msg) ModifiedOn() time.Time            { return m.m.ModifiedOn }
-func (m *Msg) SentOn() time.Time                { return m.m.SentOn }
+func (m *Msg) SentOn() *time.Time               { return m.m.SentOn }
 func (m *Msg) QueuedOn() time.Time              { return m.m.QueuedOn }
 func (m *Msg) Direction() MsgDirection          { return m.m.Direction }
 func (m *Msg) Status() MsgStatus                { return m.m.Status }
@@ -222,7 +223,7 @@ func (m *Msg) MarshalJSON() ([]byte, error) {
 }
 
 // NewIncomingIVR creates a new incoming IVR message for the passed in text and attachment
-func NewIncomingIVR(orgID OrgID, conn *ChannelConnection, in *flows.MsgIn, createdOn time.Time) *Msg {
+func NewIncomingIVR(cfg *runtime.Config, orgID OrgID, conn *ChannelConnection, in *flows.MsgIn, createdOn time.Time) *Msg {
 	msg := &Msg{}
 	m := &msg.m
 
@@ -249,14 +250,14 @@ func NewIncomingIVR(orgID OrgID, conn *ChannelConnection, in *flows.MsgIn, creat
 
 	// add any attachments
 	for _, a := range in.Attachments() {
-		m.Attachments = append(m.Attachments, string(NormalizeAttachment(config.Mailroom, a)))
+		m.Attachments = append(m.Attachments, string(NormalizeAttachment(cfg, a)))
 	}
 
 	return msg
 }
 
 // NewOutgoingIVR creates a new IVR message for the passed in text with the optional attachment
-func NewOutgoingIVR(orgID OrgID, conn *ChannelConnection, out *flows.MsgOut, createdOn time.Time) (*Msg, error) {
+func NewOutgoingIVR(cfg *runtime.Config, orgID OrgID, conn *ChannelConnection, out *flows.MsgOut, createdOn time.Time) *Msg {
 	msg := &Msg{}
 	m := &msg.m
 
@@ -281,18 +282,19 @@ func NewOutgoingIVR(orgID OrgID, conn *ChannelConnection, out *flows.MsgOut, cre
 	m.OrgID = orgID
 	m.TopupID = NilTopupID
 	m.CreatedOn = createdOn
+	m.SentOn = &createdOn
 	msg.SetChannelID(conn.ChannelID())
 
 	// if we have attachments, add them
 	for _, a := range out.Attachments() {
-		m.Attachments = append(m.Attachments, string(NormalizeAttachment(config.Mailroom, a)))
+		m.Attachments = append(m.Attachments, string(NormalizeAttachment(cfg, a)))
 	}
 
-	return msg, nil
+	return msg
 }
 
 // NewOutgoingMsg creates an outgoing message for the passed in flow message.
-func NewOutgoingMsg(org *Org, channel *Channel, contactID ContactID, out *flows.MsgOut, createdOn time.Time) (*Msg, error) {
+func NewOutgoingMsg(cfg *runtime.Config, org *Org, channel *Channel, contactID ContactID, out *flows.MsgOut, createdOn time.Time) (*Msg, error) {
 	msg := &Msg{}
 	m := &msg.m
 
@@ -330,7 +332,7 @@ func NewOutgoingMsg(org *Org, channel *Channel, contactID ContactID, out *flows.
 	// if we have attachments, add them
 	if len(out.Attachments()) > 0 {
 		for _, a := range out.Attachments() {
-			m.Attachments = append(m.Attachments, string(NormalizeAttachment(config.Mailroom, a)))
+			m.Attachments = append(m.Attachments, string(NormalizeAttachment(cfg, a)))
 		}
 	}
 
@@ -389,7 +391,7 @@ func NewOutgoingMsg(org *Org, channel *Channel, contactID ContactID, out *flows.
 }
 
 // NewIncomingMsg creates a new incoming message for the passed in text and attachment
-func NewIncomingMsg(orgID OrgID, channel *Channel, contactID ContactID, in *flows.MsgIn, createdOn time.Time) *Msg {
+func NewIncomingMsg(cfg *runtime.Config, orgID OrgID, channel *Channel, contactID ContactID, in *flows.MsgIn, createdOn time.Time) *Msg {
 	msg := &Msg{}
 	m := &msg.m
 
@@ -414,7 +416,7 @@ func NewIncomingMsg(orgID OrgID, channel *Channel, contactID ContactID, in *flow
 
 	// add any attachments
 	for _, a := range in.Attachments() {
-		m.Attachments = append(m.Attachments, string(NormalizeAttachment(config.Mailroom, a)))
+		m.Attachments = append(m.Attachments, string(NormalizeAttachment(cfg, a)))
 	}
 
 	return msg
@@ -476,7 +478,7 @@ func LoadMessages(ctx context.Context, db Queryer, orgID OrgID, direction MsgDir
 
 // NormalizeAttachment will turn any relative URL in the passed in attachment and normalize it to
 // include the full host for attachment domains
-func NormalizeAttachment(cfg *config.Config, attachment utils.Attachment) utils.Attachment {
+func NormalizeAttachment(cfg *runtime.Config, attachment utils.Attachment) utils.Attachment {
 	// don't try to modify geo type attachments which are just coordinates
 	if attachment.ContentType() == "geo" {
 		return attachment
@@ -516,10 +518,10 @@ func InsertMessages(ctx context.Context, tx Queryer, msgs []*Msg) error {
 
 const insertMsgSQL = `
 INSERT INTO
-msgs_msg(uuid, text, high_priority, created_on, modified_on, queued_on, direction, status, attachments, metadata,
+msgs_msg(uuid, text, high_priority, created_on, modified_on, queued_on, sent_on, direction, status, attachments, metadata,
 		 visibility, msg_type, msg_count, error_count, next_attempt, channel_id, connection_id, response_to_id,
 		 contact_id, contact_urn_id, org_id, topup_id, broadcast_id)
-  VALUES(:uuid, :text, :high_priority, :created_on, now(), now(), :direction, :status, :attachments, :metadata,
+  VALUES(:uuid, :text, :high_priority, :created_on, now(), now(), :sent_on, :direction, :status, :attachments, :metadata,
 		 :visibility, :msg_type, :msg_count, :error_count, :next_attempt, :channel_id, :connection_id, :response_to_id,
 		 :contact_id, :contact_urn_id, :org_id, :topup_id, :broadcast_id)
 RETURNING 
@@ -843,7 +845,7 @@ func (b *BroadcastBatch) SetIsLast(last bool)          { b.b.IsLast = last }
 func (b *BroadcastBatch) MarshalJSON() ([]byte, error)    { return json.Marshal(b.b) }
 func (b *BroadcastBatch) UnmarshalJSON(data []byte) error { return json.Unmarshal(data, &b.b) }
 
-func CreateBroadcastMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa *OrgAssets, bcast *BroadcastBatch) ([]*Msg, error) {
+func CreateBroadcastMessages(ctx context.Context, rt *runtime.Runtime, oa *OrgAssets, bcast *BroadcastBatch) ([]*Msg, error) {
 	repeatedContacts := make(map[ContactID]bool)
 	broadcastURNs := bcast.URNs()
 
@@ -868,7 +870,7 @@ func CreateBroadcastMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa
 	}
 
 	// load all our contacts
-	contacts, err := LoadContacts(ctx, db, oa, contactIDs)
+	contacts, err := LoadContacts(ctx, rt.DB, oa, contactIDs)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error loading contacts for broadcast")
 	}
@@ -989,7 +991,7 @@ func CreateBroadcastMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa
 
 		// create our outgoing message
 		out := flows.NewMsgOut(urn, channel.ChannelReference(), text, t.Attachments, t.QuickReplies, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})
-		msg, err := NewOutgoingMsg(oa.Org(), channel, c.ID(), out, time.Now())
+		msg, err := NewOutgoingMsg(rt.Config, channel, c.ID(), out, time.Now())
 		msg.SetBroadcastID(bcast.BroadcastID())
 		if err != nil {
 			return nil, errors.Wrapf(err, "error creating outgoing message")
@@ -1025,7 +1027,7 @@ func CreateBroadcastMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa
 	}
 
 	// allocate a topup for these message if org uses topups
-	topup, err := AllocateTopups(ctx, db, rp, oa.Org(), len(msgs))
+	topup, err := AllocateTopups(ctx, rt.DB, rt.RP, oa.Org(), len(msgs))
 	if err != nil {
 		return nil, errors.Wrapf(err, "error allocating topup for broadcast messages")
 	}
@@ -1038,14 +1040,14 @@ func CreateBroadcastMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa
 	}
 
 	// insert them in a single request
-	err = InsertMessages(ctx, db, msgs)
+	err = InsertMessages(ctx, rt.DB, msgs)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error inserting broadcast messages")
 	}
 
 	// if the broadcast was a ticket reply, update the ticket
 	if bcast.TicketID() != NilTicketID {
-		err = updateTicketLastActivity(ctx, db, []TicketID{bcast.TicketID()}, dates.Now())
+		err = updateTicketLastActivity(ctx, rt.DB, []TicketID{bcast.TicketID()}, dates.Now())
 		if err != nil {
 			return nil, errors.Wrapf(err, "error updating broadcast ticket")
 		}
@@ -1112,7 +1114,7 @@ func ResendMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa *OrgAsse
 		// mark message as being a resend so it will be queued to courier as such
 		msg.m.Status = MsgStatusPending
 		msg.m.QueuedOn = dates.Now()
-		msg.m.SentOn = dates.ZeroDateTime
+		msg.m.SentOn = nil
 		msg.m.ErrorCount = 0
 		msg.m.IsResend = true
 

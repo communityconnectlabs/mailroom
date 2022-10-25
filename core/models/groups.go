@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/mailroom/utils/dbutil"
 
 	"github.com/jmoiron/sqlx"
@@ -386,7 +386,7 @@ func PopulateDynamicGroup(ctx context.Context, db *sqlx.DB, es *elastic.Client, 
 		return 0, errors.Wrapf(err, "error performing query: %s for group: %d", query, groupID)
 	}
 
-	// find which need to be added or removed
+	// find which contacts need to be added or removed
 	adds := make([]ContactID, 0, 100)
 	for _, id := range newOnes {
 		if !present[id] {
@@ -419,5 +419,15 @@ func PopulateDynamicGroup(ctx context.Context, db *sqlx.DB, es *elastic.Client, 
 		return 0, errors.Wrapf(err, "error marking dynamic group as ready")
 	}
 
-	return len(newOnes), nil
+	// finally update modified_on for all affected contacts to ensure these changes are seen by rp-indexer
+	changed := make([]ContactID, 0, len(adds))
+	changed = append(changed, adds...)
+	changed = append(changed, removals...)
+
+	err = UpdateContactModifiedOn(ctx, db, changed)
+	if err != nil {
+		return 0, errors.Wrapf(err, "error updating contact modified_on after group population")
+	}
+
+	return len(new), nil
 }

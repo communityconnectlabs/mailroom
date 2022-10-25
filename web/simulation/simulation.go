@@ -6,15 +6,15 @@ import (
 	"net/http"
 
 	"github.com/nyaruka/gocommon/urns"
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/assets/static/types"
-	"github.com/greatnonprofits-nfp/goflow/excellent/tools"
-	xtypes "github.com/greatnonprofits-nfp/goflow/excellent/types"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/flows/events"
-	"github.com/greatnonprofits-nfp/goflow/flows/resumes"
-	"github.com/greatnonprofits-nfp/goflow/flows/triggers"
-	"github.com/greatnonprofits-nfp/goflow/utils"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/assets/static"
+	"github.com/nyaruka/goflow/excellent/tools"
+	xtypes "github.com/nyaruka/goflow/excellent/types"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/flows/events"
+	"github.com/nyaruka/goflow/flows/resumes"
+	"github.com/nyaruka/goflow/flows/triggers"
+	"github.com/nyaruka/goflow/utils"
 	"github.com/nyaruka/mailroom/core/goflow"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/runtime"
@@ -40,7 +40,7 @@ type sessionRequest struct {
 	OrgID  models.OrgID     `json:"org_id"  validate:"required"`
 	Flows  []flowDefinition `json:"flows"`
 	Assets struct {
-		Channels []*types.Channel `json:"channels"`
+		Channels []*static.Channel `json:"channels"`
 	} `json:"assets"`
 }
 
@@ -126,13 +126,13 @@ func handleStart(ctx context.Context, rt *runtime.Runtime, r *http.Request) (int
 	}
 
 	// grab our org assets
-	oa, err := models.GetOrgAssets(ctx, rt.DB, request.OrgID)
+	oa, err := models.GetOrgAssets(ctx, rt, request.OrgID)
 	if err != nil {
 		return nil, http.StatusBadRequest, errors.Wrapf(err, "unable to load org assets")
 	}
 
 	// create clone of assets for simulation
-	oa, err = oa.CloneForSimulation(ctx, rt.DB, request.flows(), request.channels())
+	oa, err = oa.CloneForSimulation(ctx, rt, request.flows(), request.channels())
 	if err != nil {
 		return nil, http.StatusBadRequest, errors.Wrapf(err, "unable to clone org")
 	}
@@ -189,13 +189,13 @@ func handleResume(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 	}
 
 	// grab our org assets
-	oa, err := models.GetOrgAssets(ctx, rt.DB, request.OrgID)
+	oa, err := models.GetOrgAssets(ctx, rt, request.OrgID)
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
 
 	// create clone of assets for simulation
-	oa, err = oa.CloneForSimulation(ctx, rt.DB, request.flows(), request.channels())
+	oa, err = oa.CloneForSimulation(ctx, rt, request.flows(), request.channels())
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}

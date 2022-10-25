@@ -6,7 +6,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"net/http"
@@ -17,18 +16,16 @@ import (
 
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/gocommon/urns"
-	"github.com/greatnonprofits-nfp/goflow/envs"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/flows/events"
-	"github.com/greatnonprofits-nfp/goflow/flows/routers/waits"
-	"github.com/greatnonprofits-nfp/goflow/flows/routers/waits/hints"
-	"github.com/greatnonprofits-nfp/goflow/utils"
-	"github.com/nyaruka/mailroom/config"
+	"github.com/nyaruka/goflow/envs"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/flows/events"
+	"github.com/nyaruka/goflow/flows/routers/waits"
+	"github.com/nyaruka/goflow/flows/routers/waits/hints"
+	"github.com/nyaruka/goflow/utils"
 	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/mailroom/core/models"
+	"github.com/nyaruka/mailroom/runtime"
 
-	"github.com/gomodule/redigo/redis"
-	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -110,7 +107,7 @@ var validLanguagesInitialCode = map[string]bool{
 
 var indentMarshal = true
 
-type client struct {
+type service struct {
 	httpClient   *http.Client
 	channel      *models.Channel
 	baseURL      string
@@ -120,13 +117,13 @@ type client struct {
 }
 
 func init() {
-	ivr.RegisterClientType(twimlChannelType, NewClientFromChannel)
-	ivr.RegisterClientType(twilioChannelType, NewClientFromChannel)
-	ivr.RegisterClientType(signalWireChannelType, NewClientFromChannel)
+	ivr.RegisterServiceType(twimlChannelType, NewServiceFromChannel)
+	ivr.RegisterServiceType(twilioChannelType, NewServiceFromChannel)
+	ivr.RegisterServiceType(signalWireChannelType, NewServiceFromChannel)
 }
 
-// NewClientFromChannel creates a new Twilio IVR client for the passed in account and and auth token
-func NewClientFromChannel(httpClient *http.Client, channel *models.Channel) (ivr.Client, error) {
+// NewServiceFromChannel creates a new Twilio IVR service for the passed in account and and auth token
+func NewServiceFromChannel(httpClient *http.Client, channel *models.Channel) (ivr.Service, error) {
 	accountSID := channel.ConfigValue(accountSIDConfig, "")
 	authToken := channel.ConfigValue(authTokenConfig, "")
 	if accountSID == "" || authToken == "" {
@@ -134,7 +131,7 @@ func NewClientFromChannel(httpClient *http.Client, channel *models.Channel) (ivr
 	}
 	baseURL := channel.ConfigValue(baseURLConfig, channel.ConfigValue(sendURLConfig, BaseURL))
 
-	return &client{
+	return &service{
 		httpClient:   httpClient,
 		channel:      channel,
 		baseURL:      baseURL,
@@ -144,9 +141,9 @@ func NewClientFromChannel(httpClient *http.Client, channel *models.Channel) (ivr
 	}, nil
 }
 
-// NewClient creates a new Twilio IVR client for the passed in account and and auth token
-func NewClient(httpClient *http.Client, accountSID string, authToken string) ivr.Client {
-	return &client{
+// NewService creates a new Twilio IVR service for the passed in account and and auth token
+func NewService(httpClient *http.Client, accountSID string, authToken string) ivr.Service {
+	return &service{
 		httpClient: httpClient,
 		baseURL:    BaseURL,
 		accountSID: accountSID,
@@ -154,19 +151,28 @@ func NewClient(httpClient *http.Client, accountSID string, authToken string) ivr
 	}
 }
 
-func (c *client) DownloadMedia(url string) (*http.Response, error) {
+func (s *service) DownloadMedia(url string) (*http.Response, error) {
 	return http.Get(url)
 }
 
-func (c *client) PreprocessStatus(ctx context.Context, db *sqlx.DB, rp *redis.Pool, r *http.Request) ([]byte, error) {
+func (s *service) CheckStartRequest(r *http.Request) models.ConnectionError {
+	r.ParseForm()
+	answeredBy := r.Form.Get("AnsweredBy")
+	if answeredBy == "machine_start" || answeredBy == "fax" {
+		return models.ConnectionErrorMachine
+	}
+	return ""
+}
+
+func (s *service) PreprocessStatus(ctx context.Context, rt *runtime.Runtime, r *http.Request) ([]byte, error) {
 	return nil, nil
 }
 
-func (c *client) PreprocessResume(ctx context.Context, db *sqlx.DB, rp *redis.Pool, conn *models.ChannelConnection, r *http.Request) ([]byte, error) {
+func (s *service) PreprocessResume(ctx context.Context, rt *runtime.Runtime, conn *models.ChannelConnection, r *http.Request) ([]byte, error) {
 	return nil, nil
 }
 
-func (c *client) CallIDForRequest(r *http.Request) (string, error) {
+func (s *service) CallIDForRequest(r *http.Request) (string, error) {
 	r.ParseForm()
 	callID := r.Form.Get("CallSid")
 	if callID == "" {
@@ -175,34 +181,37 @@ func (c *client) CallIDForRequest(r *http.Request) (string, error) {
 	return callID, nil
 }
 
-func (c *client) URNForRequest(r *http.Request) (urns.URN, error) {
+func (s *service) URNForRequest(r *http.Request) (urns.URN, error) {
 	r.ParseForm()
 	tel := r.Form.Get("Caller")
 	if tel == "" {
-		return "", errors.Errorf("no Caller parameter found in URL: %s", r.URL)
+		tel = r.Form.Get("From")
+	}
+	if tel == "" {
+		return "", errors.New("no Caller or From parameter found in request")
 	}
 	return urns.NewTelURNForCountry(tel, "")
 }
 
 // CallResponse is our struct for a Twilio call response
 type CallResponse struct {
-	SID    string `json:"sid"`
+	SID    string `json:"sid" validate:"required"`
 	Status string `json:"status"`
 }
 
 // RequestCall causes this client to request a new outgoing call for this provider
-func (c *client) RequestCall(number urns.URN, callbackURL string, statusURL string, hasMachineDetection bool) (ivr.CallID, *httpx.Trace, error) {
+func (s *service) RequestCall(number urns.URN, callbackURL string, statusURL string, machineDetection bool) (ivr.CallID, *httpx.Trace, error) {
 	form := url.Values{}
 	form.Set("To", number.Path())
-	form.Set("From", c.channel.Address())
+	form.Set("From", s.channel.Address())
 	form.Set("Url", callbackURL)
 	form.Set("StatusCallback", statusURL)
 
-	if hasMachineDetection {
+	if machineDetection {
 		form.Set("MachineDetection", "DetectMessageEnd")
 	}
 
-	sendURL := c.baseURL + strings.Replace(callPath, "{AccountSID}", c.accountSID, -1)
+	sendURL := s.baseURL + strings.Replace(callPath, "{AccountSID}", s.accountSID, -1)
 
 	trace, err := c.postRequest(sendURL, form)
 	if err != nil {
@@ -213,13 +222,11 @@ func (c *client) RequestCall(number urns.URN, callbackURL string, statusURL stri
 		return ivr.NilCallID, trace, errors.Errorf("received non 201 status for call start: %d", trace.Response.StatusCode)
 	}
 
-	// parse out our call sid
+	// parse the response from Twilio
 	call := &CallResponse{}
-	err = json.Unmarshal(trace.ResponseBody, call)
-	if err != nil || call.SID == "" {
-		return ivr.NilCallID, trace, errors.Errorf("unable to read call id")
+	if err := utils.UnmarshalAndValidate(trace.ResponseBody, call); err != nil {
+		return ivr.NilCallID, trace, errors.Wrap(err, "unable parse Twilio response")
 	}
-
 	if call.Status == statusFailed {
 		return ivr.NilCallID, trace, errors.Errorf("call status returned as failed")
 	}
@@ -228,14 +235,14 @@ func (c *client) RequestCall(number urns.URN, callbackURL string, statusURL stri
 }
 
 // HangupCall asks Twilio to hang up the call that is passed in
-func (c *client) HangupCall(callID string) (*httpx.Trace, error) {
+func (s *service) HangupCall(callID string) (*httpx.Trace, error) {
 	form := url.Values{}
 	form.Set("Status", "completed")
 
-	sendURL := c.baseURL + strings.Replace(hangupPath, "{AccountSID}", c.accountSID, -1)
+	sendURL := s.baseURL + strings.Replace(hangupPath, "{AccountSID}", s.accountSID, -1)
 	sendURL = strings.Replace(sendURL, "{SID}", callID, -1)
 
-	trace, err := c.postRequest(sendURL, form)
+	trace, err := s.postRequest(sendURL, form)
 	if err != nil {
 		return trace, errors.Wrapf(err, "error trying to hangup call")
 	}
@@ -248,7 +255,7 @@ func (c *client) HangupCall(callID string) (*httpx.Trace, error) {
 }
 
 // InputForRequest returns the input for the passed in request, if any
-func (c *client) ResumeForRequest(r *http.Request) (ivr.Resume, error) {
+func (s *service) ResumeForRequest(r *http.Request) (ivr.Resume, error) {
 	// this could be a timeout, in which case we return an empty input
 	timeout := r.Form.Get("timeout")
 	if timeout == "true" {
@@ -297,37 +304,37 @@ func (c *client) ResumeForRequest(r *http.Request) (ivr.Resume, error) {
 	}
 }
 
-// StatusForRequest returns the current call status for the passed in status (and optional duration if known)
-func (c *client) StatusForRequest(r *http.Request) (models.ConnectionStatus, int) {
+// StatusForRequest returns the call status for the passed in request, and if it's an error the reason,
+// and if available, the current call duration
+func (s *service) StatusForRequest(r *http.Request) (models.ConnectionStatus, models.ConnectionError, int) {
 	status := r.Form.Get("CallStatus")
 	switch status {
 
 	case "queued", "ringing":
-		return models.ConnectionStatusWired, 0
-
+		return models.ConnectionStatusWired, "", 0
 	case "in-progress", "initiated":
-		return models.ConnectionStatusInProgress, 0
-
-	case "busy", "no-answer":
-		return models.ConnectionStatusBusy, 0
-
+		return models.ConnectionStatusInProgress, "", 0
 	case "completed":
 		duration, _ := strconv.Atoi(r.Form.Get("CallDuration"))
-		return models.ConnectionStatusCompleted, duration
+		return models.ConnectionStatusCompleted, "", duration
 
+	case "busy":
+		return models.ConnectionStatusErrored, models.ConnectionErrorBusy, 0
+	case "no-answer":
+		return models.ConnectionStatusErrored, models.ConnectionErrorNoAnswer, 0
 	case "canceled", "failed":
-		return models.ConnectionStatusErrored, 0
+		return models.ConnectionStatusErrored, models.ConnectionErrorProvider, 0
 
 	default:
-		logrus.WithField("call_status", status).Error("unknown call status in ivr callback")
-		return models.ConnectionStatusFailed, 0
+		logrus.WithField("call_status", status).Error("unknown call status in status callback")
+		return models.ConnectionStatusFailed, models.ConnectionErrorProvider, 0
 	}
 }
 
 // ValidateRequestSignature validates the signature on the passed in request, returning an error if it is invaled
-func (c *client) ValidateRequestSignature(r *http.Request) error {
+func (s *service) ValidateRequestSignature(r *http.Request) error {
 	// shortcut for testing
-	if IgnoreSignatures || !c.validateSigs {
+	if IgnoreSignatures || !s.validateSigs {
 		return nil
 	}
 
@@ -345,7 +352,7 @@ func (c *client) ValidateRequestSignature(r *http.Request) error {
 	}
 
 	url := fmt.Sprintf("https://%s%s", r.Host, path)
-	expected, err := twCalculateSignature(url, r.PostForm, c.authToken)
+	expected, err := twCalculateSignature(url, r.PostForm, s.authToken)
 	if err != nil {
 		return errors.Wrapf(err, "error calculating signature")
 	}
@@ -359,7 +366,7 @@ func (c *client) ValidateRequestSignature(r *http.Request) error {
 }
 
 // WriteSessionResponse writes a TWIML response for the events in the passed in session
-func (c *client) WriteSessionResponse(ctx context.Context, rp *redis.Pool, channel *models.Channel, conn *models.ChannelConnection, session *models.Session, number urns.URN, resumeURL string, r *http.Request, w http.ResponseWriter) error {
+func (s *service) WriteSessionResponse(ctx context.Context, rt *runtime.Runtime, channel *models.Channel, conn *models.ChannelConnection, session *models.Session, number urns.URN, resumeURL string, r *http.Request, w http.ResponseWriter) error {
 	// for errored sessions we should just output our error body
 	if session.Status() == models.SessionStatusFailed {
 		return errors.Errorf("cannot write IVR response for failed session")
@@ -372,7 +379,7 @@ func (c *client) WriteSessionResponse(ctx context.Context, rp *redis.Pool, chann
 	}
 
 	// get our response
-	response, err := responseForSprint(number, resumeURL, session.Wait(), sprint.Events())
+	response, err := ResponseForSprint(rt.Config, number, resumeURL, session.Wait(), sprint.Events(), true)
 	if err != nil {
 		return errors.Wrap(err, "unable to build response for IVR call")
 	}
@@ -386,7 +393,7 @@ func (c *client) WriteSessionResponse(ctx context.Context, rp *redis.Pool, chann
 }
 
 // WriteErrorResponse writes an error / unavailable response
-func (c *client) WriteErrorResponse(w http.ResponseWriter, err error) error {
+func (s *service) WriteErrorResponse(w http.ResponseWriter, err error) error {
 	r := &Response{Message: strings.Replace(err.Error(), "--", "__", -1)}
 	r.Commands = append(r.Commands, Say{Text: ivr.ErrorMessage})
 	r.Commands = append(r.Commands, Hangup{})
@@ -400,7 +407,7 @@ func (c *client) WriteErrorResponse(w http.ResponseWriter, err error) error {
 }
 
 // WriteEmptyResponse writes an empty (but valid) response
-func (c *client) WriteEmptyResponse(w http.ResponseWriter, msg string) error {
+func (s *service) WriteEmptyResponse(w http.ResponseWriter, msg string) error {
 	r := &Response{Message: strings.Replace(msg, "--", "__", -1)}
 
 	body, err := xml.Marshal(r)
@@ -411,13 +418,13 @@ func (c *client) WriteEmptyResponse(w http.ResponseWriter, msg string) error {
 	return err
 }
 
-func (c *client) postRequest(sendURL string, form url.Values) (*httpx.Trace, error) {
+func (s *service) postRequest(sendURL string, form url.Values) (*httpx.Trace, error) {
 	req, _ := http.NewRequest(http.MethodPost, sendURL, strings.NewReader(form.Encode()))
-	req.SetBasicAuth(c.accountSID, c.authToken)
+	req.SetBasicAuth(s.accountSID, s.authToken)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
-	return httpx.DoTrace(c.httpClient, req, nil, nil, -1)
+	return httpx.DoTrace(s.httpClient, req, nil, nil, -1)
 }
 
 // see https://www.twilio.com/docs/api/security
@@ -452,56 +459,7 @@ func twCalculateSignature(url string, form url.Values, authToken string) ([]byte
 
 // TWIML building utilities
 
-type Say struct {
-	XMLName  string `xml:"Say"`
-	Text     string `xml:",chardata"`
-	Language string `xml:"language,attr,omitempty"`
-}
-
-type Play struct {
-	XMLName string `xml:"Play"`
-	URL     string `xml:",chardata"`
-}
-
-type Hangup struct {
-	XMLName string `xml:"Hangup"`
-}
-
-type Redirect struct {
-	XMLName string `xml:"Redirect"`
-	URL     string `xml:",chardata"`
-}
-
-type Dial struct {
-	XMLName string `xml:"Dial"`
-	Number  string `xml:",chardata"`
-	Action  string `xml:"action,attr"`
-	Timeout int    `xml:"timeout,attr,omitempty"`
-}
-
-type Gather struct {
-	XMLName     string        `xml:"Gather"`
-	NumDigits   int           `xml:"numDigits,attr,omitempty"`
-	FinishOnKey string        `xml:"finishOnKey,attr,omitempty"`
-	Timeout     int           `xml:"timeout,attr,omitempty"`
-	Action      string        `xml:"action,attr,omitempty"`
-	Commands    []interface{} `xml:",innerxml"`
-}
-
-type Record struct {
-	XMLName   string `xml:"Record"`
-	Action    string `xml:"action,attr,omitempty"`
-	MaxLength int    `xml:"maxLength,attr,omitempty"`
-}
-
-type Response struct {
-	XMLName  string        `xml:"Response"`
-	Message  string        `xml:",comment"`
-	Gather   *Gather       `xml:"Gather"`
-	Commands []interface{} `xml:",innerxml"`
-}
-
-func responseForSprint(number urns.URN, resumeURL string, w flows.ActivatedWait, es []flows.Event) (string, error) {
+func ResponseForSprint(cfg *runtime.Config, number urns.URN, resumeURL string, w flows.ActivatedWait, es []flows.Event, indent bool) (string, error) {
 	r := &Response{}
 	commands := make([]interface{}, 0)
 
@@ -526,7 +484,7 @@ func responseForSprint(number urns.URN, resumeURL string, w flows.ActivatedWait,
 				commands = append(commands, Say{Text: event.Msg.Text(), Language: languageCode})
 			} else {
 				for _, a := range event.Msg.Attachments() {
-					a = models.NormalizeAttachment(config.Mailroom, a)
+					a = models.NormalizeAttachment(cfg, a)
 					commands = append(commands, Play{URL: a.URL()})
 				}
 			}
@@ -581,7 +539,7 @@ func responseForSprint(number urns.URN, resumeURL string, w flows.ActivatedWait,
 
 	var body []byte
 	var err error
-	if indentMarshal {
+	if indent {
 		body, err = xml.MarshalIndent(r, "", "  ")
 	} else {
 		body, err = xml.Marshal(r)

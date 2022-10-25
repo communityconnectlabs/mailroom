@@ -14,9 +14,9 @@ import (
 )
 
 func TestClassifiers(t *testing.T) {
-	ctx, _, db, _ := testsuite.Get()
+	ctx, rt, _, _ := testsuite.Get()
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshClassifiers)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, testdata.Org1.ID, models.RefreshClassifiers)
 	require.NoError(t, err)
 
 	classifiers, err := oa.Classifiers()
