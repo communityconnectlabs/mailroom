@@ -67,7 +67,8 @@ func TestWithHTTPLogs(t *testing.T) {
 }
 
 func TestRequireUserToken(t *testing.T) {
-	ctx, rt, db, _ := testsuite.Reset()
+	ctx, rt, db, _ := testsuite.Get()
+	testsuite.Reset(testsuite.ResetDB)
 
 	handler := getMockHandler()
 	userId := int64(2)

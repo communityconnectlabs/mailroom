@@ -535,7 +535,7 @@ func handleStopEvent(ctx context.Context, rt *runtime.Runtime, event *StopEvent)
 }
 
 // handleMsgEvent is called when a new message arrives from a contact
-func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent) error {
+func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s3storage storage.Storage, config *runtime.Config) error {
 	oa, err := models.GetOrgAssets(ctx, rt, event.OrgID)
 	if err != nil {
 		return errors.Wrapf(err, "error loading org")
@@ -598,7 +598,7 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent) e
 			return errors.Wrapf(err, "error unstopping contact")
 		}
 
-		err = models.AddContactToOptOutedGroups(ctx, rt.DB, event.OrgID, modelContact.ID())
+		err = models.AddContactToOptOutedGroups(ctx, rt, event.OrgID, modelContact.ID())
 		if err != nil {
 			return errors.Wrapf(err, "error adding contact to groups")
 		}
@@ -920,7 +920,7 @@ func NewExpirationTask(orgID models.OrgID, contactID models.ContactID, sessionID
 	return newTimedTask(ExpirationEventType, orgID, contactID, sessionID, runID, time)
 }
 
-func NewHandleFlowImage(ctx context.Context, db *sqlx.DB, s3storage storage.Storage, config *config.Config, orgID models.OrgID, contactID models.ContactID, flowID models.FlowID, attachments []utils.Attachment) error {
+func NewHandleFlowImage(ctx context.Context, db *sqlx.DB, s3storage storage.Storage, config *runtime.Config, orgID models.OrgID, contactID models.ContactID, flowID models.FlowID, attachments []utils.Attachment) error {
 	tx, err := db.BeginTxx(ctx, nil)
 	if err != nil {
 		return errors.Wrapf(err, "unable to start transaction")
