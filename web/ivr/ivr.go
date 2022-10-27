@@ -3,7 +3,6 @@ package ivr
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"

@@ -1,6 +1,9 @@
 module github.com/nyaruka/mailroom
 
-replace github.com/nyaruka/gocommon => github.com/greatnonprofits-nfp/gocommon v1.12.2
+replace (
+	github.com/nyaruka/gocommon => github.com/greatnonprofits-nfp/gocommon v1.12.2
+	github.com/nyaruka/goflow => /Users/teehamaral/GNP/goflow
+)
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0

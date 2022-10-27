@@ -248,7 +248,7 @@ func RequestCallStartForConnection(ctx context.Context, rt *runtime.Runtime, cha
 		return errors.Wrapf(err, "unable to create IVR service")
 	}
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, conn.OrgID(), models.RefreshOrg)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, conn.OrgID(), models.RefreshOrg)
 	hasMachineDetection := false
 	if err == nil && oa != nil {
 		hasMachineDetection = oa.Org().ConfigValue("IVR_MACHINE_DETECTION", "false") == "true"

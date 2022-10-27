@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	openapi "github.com/twilio/twilio-go/rest/lookups/v1"
-	"io/ioutil"
 	"sort"
 	"strings"
 	"testing"
@@ -72,7 +71,7 @@ func TestContactImports(t *testing.T) {
 	defer uuids.SetGenerator(uuids.DefaultGenerator)
 
 	for i, tc := range tcs {
-		importID := testdata.InsertContactImport(db, testdata.Org1, testdata.Admin)
+		importID := testdata.InsertContactImport(db, testdata.Org1, testdata.Admin, false)
 		batchID := testdata.InsertContactImportBatch(db, importID, tc.Specs)
 
 		batch, err := models.LoadContactImportBatch(ctx, db, batchID)
@@ -155,7 +154,7 @@ func TestLoadContactImport(t *testing.T) {
 
 	defer testsuite.Reset(testsuite.ResetData)
 
-	importID := testdata.InsertContactImport(db, testdata.Org1, testdata.Admin)
+	importID := testdata.InsertContactImport(db, testdata.Org1, testdata.Admin, false)
 	batch1ID := testdata.InsertContactImportBatch(db, importID, []byte(`[
 		{"name": "Norbert", "language": "eng", "urns": ["tel:+16055740001"]},
 		{"name": "Leah", "urns": ["tel:+16055740002"]}
@@ -262,9 +261,9 @@ func TestValidateURNCarrierWithError(t *testing.T) {
 }
 
 func TestImportWithCarrierValidation(t *testing.T) {
-	ctx, _, db, _ := testsuite.Get()
+	ctx, rt, db, _ := testsuite.Get()
 
-	importID := testdata.InsertContactImport(db, testdata.Org1, true)
+	importID := testdata.InsertContactImport(db, testdata.Org1, testdata.Admin, true)
 	// 23480395295011 is an invalid number and will not be captured in the final result
 	batchID := testdata.InsertContactImportBatch(db, importID, []byte(`[
 		{"name": "Norbert", "language": "eng", "urns": ["tel:+16055740001"]},
@@ -276,9 +275,8 @@ func TestImportWithCarrierValidation(t *testing.T) {
 	batch, err := models.LoadContactImportBatch(ctx, db, batchID)
 	require.NoError(t, err)
 
-
 	models.MockFnInitLookup()
-	err = batch.Import(ctx, db, testdata.Org1.ID)
+	err = batch.Import(ctx, rt, testdata.Org1.ID)
 	require.NoError(t, err)
 
 	carrierGroups := map[models.CarrierType][]models.ContactID{}
@@ -292,14 +290,14 @@ func TestImportWithCarrierValidation(t *testing.T) {
 }
 
 type sampleContact struct {
-	Spec models.ContactSpec `json:"spec"`
-	ValidURN bool			`json:"valid_urn"`
-	URNCount int			`json:"urn_count"`
-	CarrierType string		`json:"type"`
-	CarrierName string		`json:"name"`
+	Spec        models.ContactSpec `json:"spec"`
+	ValidURN    bool               `json:"valid_urn"`
+	URNCount    int                `json:"urn_count"`
+	CarrierType string             `json:"type"`
+	CarrierName string             `json:"name"`
 }
 
-func loadSampleContacts () (map[string]sampleContact, error) {
+func loadSampleContacts() (map[string]sampleContact, error) {
 	var sampleData = `{
 		"tel:bad_contact_1": {
 			"spec": {
@@ -391,7 +389,7 @@ func FetchPhoneNumberMock(PhoneNumber string, params *openapi.FetchPhoneNumberPa
 		responseSample["name"] = data.CarrierName
 	}
 	var returnValue = &openapi.LookupsV1PhoneNumber{
-		Carrier: &responseSample,
+		Carrier:     &responseSample,
 		PhoneNumber: &PhoneNumber,
 	}
 	if PhoneNumber == "tel:bad_contact_1" {

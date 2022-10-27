@@ -9,9 +9,9 @@ import (
 	"github.com/nyaruka/mailroom/runtime"
 	"github.com/nyaruka/mailroom/services/tickets"
 	"github.com/nyaruka/mailroom/web"
-	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/nyaruka/goflow/flows"
 	"github.com/pkg/errors"
-	"github.com/greatnonprofits-nfp/goflow/utils"
+	"github.com/nyaruka/goflow/utils"
 )
 
 func init() {
@@ -38,7 +38,7 @@ func handleEventCallback(ctx context.Context, rt *runtime.Runtime, r *http.Reque
 
 	ticketUUID := uuids.UUID(chi.URLParam(r, "ticket"))
 
-	ticket, _, _, err := tickets.FromTicketUUID(ctx, rt.DB, flows.TicketUUID(ticketUUID), typeAmazonConnect)
+	ticket, _, _, err := tickets.FromTicketUUID(ctx, rt, flows.TicketUUID(ticketUUID), typeAmazonConnect)
 	if err != nil {
 		return errors.Errorf("no such ticket %s", ticketUUID), http.StatusNotFound, nil
 	}
@@ -50,7 +50,7 @@ func handleEventCallback(ctx context.Context, rt *runtime.Runtime, r *http.Reque
 			return err, http.StatusBadRequest, nil
 		}
 	case "close-ticket":
-		err = tickets.CloseTicket(ctx, rt, nil, ticket, false, l)
+		err = tickets.Close(ctx, rt, nil, ticket, false, l)
 
 	default:
 		err = errors.New("invalid event type")

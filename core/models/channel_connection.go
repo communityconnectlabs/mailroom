@@ -49,6 +49,9 @@ const (
 	ConnectionStatusCompleted  = ConnectionStatus("D") // call was completed successfully
 	ConnectionStatusErrored    = ConnectionStatus("E") // temporary failure (will be retried)
 	ConnectionStatusFailed     = ConnectionStatus("F") // permanent failure
+	ConnectionStatusBusy       = ConnectionStatus("B")
+	ConnectionStatusNoAnswer   = ConnectionStatus("N")
+	ConnectionStatusCancelled  = ConnectionStatus("C")
 
 	ConnectionErrorProvider = ConnectionError("P")
 	ConnectionErrorBusy     = ConnectionError("B")

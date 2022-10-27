@@ -30,9 +30,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// BaseURL is our default base URL for TWIML channels (public for testing overriding)
-var BaseURL = `https://api.twilio.com`
-
 // IgnoreSignatures controls whether we ignore signatures (public for testing overriding)
 var IgnoreSignatures = false
 
@@ -213,7 +210,7 @@ func (s *service) RequestCall(number urns.URN, callbackURL string, statusURL str
 
 	sendURL := s.baseURL + strings.Replace(callPath, "{AccountSID}", s.accountSID, -1)
 
-	trace, err := c.postRequest(sendURL, form)
+	trace, err := s.postRequest(sendURL, form)
 	if err != nil {
 		return ivr.NilCallID, trace, errors.Wrapf(err, "error trying to start call")
 	}
@@ -352,7 +349,7 @@ func (s *service) ValidateRequestSignature(r *http.Request) error {
 	}
 
 	url := fmt.Sprintf("https://%s%s", r.Host, path)
-	expected, err := twCalculateSignature(url, r.PostForm, s.authToken)
+	expected, err := TwCalculateSignature(url, r.PostForm, s.authToken)
 	if err != nil {
 		return errors.Wrapf(err, "error calculating signature")
 	}
@@ -428,7 +425,7 @@ func (s *service) postRequest(sendURL string, form url.Values) (*httpx.Trace, er
 }
 
 // see https://www.twilio.com/docs/api/security
-func twCalculateSignature(url string, form url.Values, authToken string) ([]byte, error) {
+func TwCalculateSignature(url string, form url.Values, authToken string) ([]byte, error) {
 	var buffer bytes.Buffer
 	buffer.WriteString(url)
 

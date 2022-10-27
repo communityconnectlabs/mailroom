@@ -20,7 +20,6 @@ import (
 	"github.com/nyaruka/null"
 	"github.com/pkg/errors"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/twilio/twilio-go"
 )
 
@@ -501,15 +500,15 @@ type PhoneNumberLookupOutput struct {
 	IsValid     bool
 }
 
-var getValidationFn = func (twilioClient *twilio.RestClient) FetchPhoneNumber {
-	returnFn := func (PhoneNumber string, params *openapi.FetchPhoneNumberParams) (*openapi.LookupsV1PhoneNumber, error) {
+var getValidationFn = func(twilioClient *twilio.RestClient) FetchPhoneNumber {
+	returnFn := func(PhoneNumber string, params *openapi.FetchPhoneNumberParams) (*openapi.LookupsV1PhoneNumber, error) {
 		return twilioClient.LookupsV1.FetchPhoneNumber(PhoneNumber, params)
 	}
 
 	return returnFn
 }
 
-type FetchPhoneNumber func (string, *openapi.FetchPhoneNumberParams) (*openapi.LookupsV1PhoneNumber, error)
+type FetchPhoneNumber func(string, *openapi.FetchPhoneNumberParams) (*openapi.LookupsV1PhoneNumber, error)
 
 func checkValidateCarrier(ctx context.Context, db Queryer, id ContactImportID) (bool, error) {
 	result, err := db.ExecContext(ctx, checkValidateCarrierValueSQL, id)

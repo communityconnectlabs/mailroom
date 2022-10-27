@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
-	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/nyaruka/goflow/flows"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/nyaruka/gocommon/jsonx"

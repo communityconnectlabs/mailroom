@@ -6,15 +6,14 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"net/url"
 	"strconv"
 	"time"
 
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/envs"
-	"github.com/greatnonprofits-nfp/goflow/excellent/types"
-	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/envs"
+	"github.com/nyaruka/goflow/excellent/types"
+	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/gocommon/uuids"
@@ -24,6 +23,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/nyaruka/mailroom/runtime"
 )
 
 // URNID is our type for urn ids, which can be null
@@ -1076,18 +1076,18 @@ func GetLastContactOptOutEvent(ctx context.Context, db Queryer, contactID Contac
 	return evt, nil
 }
 
-func UpdateContactOptOutChannelEvent(ctx context.Context, db *sqlx.DB, orgID OrgID, contactID ContactID) error {
-	oa, err := GetOrgAssetsWithRefresh(ctx, db, orgID, RefreshFields)
+func UpdateContactOptOutChannelEvent(ctx context.Context, rt *runtime.Runtime, orgID OrgID, contactID ContactID) error {
+	oa, err := GetOrgAssetsWithRefresh(ctx, rt, orgID, RefreshFields)
 	if err != nil {
 		return err
 	}
 
-	contact, err := LoadContact(ctx, db, oa, contactID)
+	contact, err := LoadContact(ctx, rt.DB, oa, contactID)
 	if err != nil {
 		return err
 	}
 
-	evt, err := GetLastContactOptOutEvent(ctx, db, contact.ID())
+	evt, err := GetLastContactOptOutEvent(ctx, rt.DB, contact.ID())
 	if err != nil {
 		return err
 	}
@@ -1115,7 +1115,7 @@ func UpdateContactOptOutChannelEvent(ctx context.Context, db *sqlx.DB, orgID Org
 		ContactID: contact.ID(),
 		Updates:   string(fieldJSON),
 	}
-	err = BulkQuery(ctx, "updating contact field values", db, updateContactFields, fieldUpdates)
+	err = BulkQuery(ctx, "updating contact field values", rt.DB, updateContactFields, fieldUpdates)
 	if err != nil {
 		return errors.Wrapf(err, "error updating contact fields")
 	}
@@ -1132,7 +1132,7 @@ func UpdateContactOptOutChannelEvent(ctx context.Context, db *sqlx.DB, orgID Org
 		"event_id":    evt.ID(),
 		"event_extra": eventExtra,
 	}
-	_, err = db.NamedExecContext(ctx, updateContactOptOutEvent, eventUpdate)
+	_, err = rt.DB.NamedExecContext(ctx, updateContactOptOutEvent, eventUpdate)
 	if err != nil {
 		return errors.Wrapf(err, "error updating event definition by contact: %d", contact.ID())
 	}
@@ -1140,18 +1140,18 @@ func UpdateContactOptOutChannelEvent(ctx context.Context, db *sqlx.DB, orgID Org
 	return nil
 }
 
-func AddContactToOptOutedGroups(ctx context.Context, db *sqlx.DB, orgID OrgID, contactID ContactID) error {
-	oa, err := GetOrgAssetsWithRefresh(ctx, db, orgID, RefreshFields)
+func AddContactToOptOutedGroups(ctx context.Context, rt *runtime.Runtime, orgID OrgID, contactID ContactID) error {
+	oa, err := GetOrgAssetsWithRefresh(ctx, rt, orgID, RefreshFields)
 	if err != nil {
 		return err
 	}
 
-	contact, err := LoadContact(ctx, db, oa, contactID)
+	contact, err := LoadContact(ctx, rt.DB, oa, contactID)
 	if err != nil {
 		return err
 	}
 
-	evt, err := GetLastContactOptOutEvent(ctx, db, contact.ID())
+	evt, err := GetLastContactOptOutEvent(ctx, rt.DB, contact.ID())
 	if err != nil {
 		return err
 	}
@@ -1179,7 +1179,7 @@ func AddContactToOptOutedGroups(ctx context.Context, db *sqlx.DB, orgID OrgID, c
 				})
 			}
 		}
-		err = AddContactsToGroups(ctx, db, groupsToAdd)
+		err = AddContactsToGroups(ctx, rt.DB, groupsToAdd)
 		if err != nil {
 			return err
 		}

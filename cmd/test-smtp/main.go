@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/greatnonprofits-nfp/goflow/utils/smtpx"
+	"github.com/nyaruka/goflow/utils/smtpx"
 	"github.com/nyaruka/ezconf"
 
 	"github.com/sirupsen/logrus"

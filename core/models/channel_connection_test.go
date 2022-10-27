@@ -33,20 +33,20 @@ func TestChannelConnections(t *testing.T) {
 
 func TestInvalidChannelExternalID(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset()
+	testsuite.Reset(testsuite.ResetDB)
 
 	wrongEID := "wrong_id"
 
 	_, err := models.InsertIVRConnection(ctx, db, testdata.Org1.ID, testdata.TwilioChannel.ID, models.NilStartID, testdata.Cathy.ID, testdata.Cathy.URNID, models.ConnectionDirectionOut, models.ConnectionStatusPending, "")
 	assert.NoError(t, err)
 
-	_, err = models.SelectChannelConnectionByExternalID(ctx, db, testdata.TwilioChannel.ID,"V", wrongEID)
+	_, err = models.SelectChannelConnectionByExternalID(ctx, db, testdata.TwilioChannel.ID, "V", wrongEID)
 	assert.Error(t, err, "unable to load channel connection with external id: %s", wrongEID)
 }
 
 func TestUpdateStatus(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset()
+	testsuite.Reset(testsuite.ResetDB)
 
 	expectedEndTime := time.Now()
 	expectedDuration1 := 5
@@ -68,7 +68,7 @@ func TestUpdateStatus(t *testing.T) {
 
 func TestLoadChannelConnectionsToRetry(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset()
+	testsuite.Reset(testsuite.ResetDB)
 
 	limit := 2
 
@@ -77,7 +77,7 @@ func TestLoadChannelConnectionsToRetry(t *testing.T) {
 	conn1, err := models.InsertIVRConnection(ctx, db, testdata.Org1.ID, testdata.VonageChannel.ID, models.NilStartID, testdata.Cathy.ID, testdata.Cathy.URNID, models.ConnectionDirectionOut, models.ConnectionStatusQueued, "")
 	assert.NoError(t, err)
 
-	_, err = models.InsertIVRConnection(ctx, db,  testdata.Org1.ID, testdata.VonageChannel.ID, models.NilStartID, testdata.Cathy.ID, testdata.Cathy.URNID, models.ConnectionDirectionOut, models.ConnectionStatusPending, "")
+	_, err = models.InsertIVRConnection(ctx, db, testdata.Org1.ID, testdata.VonageChannel.ID, models.NilStartID, testdata.Cathy.ID, testdata.Cathy.URNID, models.ConnectionDirectionOut, models.ConnectionStatusPending, "")
 	assert.NoError(t, err)
 
 	conns, err := models.LoadChannelConnectionsToRetry(ctx, db, limit)
@@ -94,7 +94,7 @@ func TestLoadChannelConnectionsToRetry(t *testing.T) {
 
 func TestActiveChannelConnectionCount(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset()
+	testsuite.Reset(testsuite.ResetDB)
 
 	conn1, err := models.InsertIVRConnection(ctx, db, testdata.Org1.ID, testdata.TwilioChannel.ID, models.NilStartID, testdata.Cathy.ID, testdata.Cathy.URNID, models.ConnectionDirectionOut, models.ConnectionStatusPending, "")
 	assert.NoError(t, err)
@@ -102,7 +102,7 @@ func TestActiveChannelConnectionCount(t *testing.T) {
 	conn2, err := models.InsertIVRConnection(ctx, db, testdata.Org1.ID, testdata.TwilioChannel.ID, models.NilStartID, testdata.Bob.ID, testdata.Bob.URNID, models.ConnectionDirectionOut, models.ConnectionStatusPending, "")
 	assert.NoError(t, err)
 
-	conn3, err := models.InsertIVRConnection(ctx, db,testdata.Org1.ID, testdata.TwilioChannel.ID, models.NilStartID, testdata.Alexandria.ID, testdata.Alexandria.URNID, models.ConnectionDirectionOut, models.ConnectionStatusWired, "")
+	conn3, err := models.InsertIVRConnection(ctx, db, testdata.Org1.ID, testdata.TwilioChannel.ID, models.NilStartID, testdata.Alexandria.ID, testdata.Alexandria.URNID, models.ConnectionDirectionOut, models.ConnectionStatusWired, "")
 	assert.NoError(t, err)
 
 	count, err := models.ActiveChannelConnectionCount(ctx, db, testdata.TwilioChannel.ID)
@@ -122,7 +122,8 @@ func TestActiveChannelConnectionCount(t *testing.T) {
 	err = conn1.MarkStarted(ctx, db, time.Now())
 	assert.NoError(t, err)
 
-	err = conn2.MarkErrored(ctx, db, time.Now(), 1)
+	retryWait := time.Second * time.Duration(1)
+	err = conn2.MarkErrored(ctx, db, time.Now(), &retryWait, models.ConnectionErrorBusy)
 	assert.NoError(t, err)
 
 	count, err = models.ActiveChannelConnectionCount(ctx, db, testdata.TwilioChannel.ID)
@@ -139,7 +140,7 @@ func TestActiveChannelConnectionCount(t *testing.T) {
 
 func TestUpdateChannelConnectionStatuses(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset()
+	testsuite.Reset(testsuite.ResetDB)
 
 	var connectionIDs []models.ConnectionID
 

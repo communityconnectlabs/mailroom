@@ -22,7 +22,6 @@ import (
 	"github.com/nyaruka/goflow/utils/smtpx"
 	"github.com/nyaruka/mailroom/core/goflow"
 	"github.com/nyaruka/mailroom/runtime"
-	"github.com/nyaruka/mailroom/utils/dbutil"
 	"github.com/nyaruka/null"
 
 	"github.com/jmoiron/sqlx"

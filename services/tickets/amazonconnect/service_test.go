@@ -8,11 +8,10 @@ import (
 	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/gocommon/uuids"
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/assets/static/types"
-	"github.com/greatnonprofits-nfp/goflow/envs"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/test"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/envs"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/test"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
@@ -22,10 +21,11 @@ import (
 	"github.com/nyaruka/mailroom/services/tickets/amazonconnect"
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
+	"github.com/nyaruka/goflow/assets/static"
 )
 
 func TestOpenAndForward(t *testing.T) {
-	_, rt, _, _ := testsuite.Get()
+	ctx, rt, _, _ := testsuite.Get()
 
 	defer dates.SetNowSource(dates.DefaultNowSource)
 	dates.SetNowSource(dates.NewSequentialNowSource(time.Date(2019, 10, 7, 15, 21, 30, 0, time.UTC)))
@@ -80,7 +80,7 @@ func TestOpenAndForward(t *testing.T) {
 
 	amazonconnect.SetDB(sqlxDB)
 
-	ticketer := flows.NewTicketer(types.NewTicketer(assets.TicketerUUID(uuids.New()), "Support", "amazonconnect"))
+	ticketer := flows.NewTicketer(static.NewTicketer(assets.TicketerUUID(uuids.New()), "Support", "amazonconnect"))
 
 	_, err = amazonconnect.NewService(
 		rt.Config,
@@ -103,14 +103,19 @@ func TestOpenAndForward(t *testing.T) {
 	assert.NoError(t, err)
 
 	logger := &flows.HTTPLogger{}
-	_, err = svc.Open(session, "Need help", "Where are my cookies?", logger.Log)
+
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
+	require.NoError(t, err)
+	defaultTopic := oa.SessionAssets().Topics().FindByName("General")
+
+	_, err = svc.Open(session, defaultTopic, "Where are my cookies?", nil, logger.Log)
 	assert.NoError(t, err)
 
 	logger = &flows.HTTPLogger{}
-	_, err = svc.Open(session, "Need help", "Where are my cookies?", logger.Log)
+	_, err = svc.Open(session, defaultTopic, "Where are my cookies?", nil, logger.Log)
 	assert.Error(t, err)
 
-	dbTicket := models.NewTicket("4fa340ae-1fb0-4666-98db-2177fe9bf31c", testdata.Org1.ID, testdata.Cathy.ID, testdata.Amazonconnect.ID, "", "Need help", "Where are my cookies?", models.NilUserID, map[string]interface{}{
+	dbTicket := models.NewTicket("4fa340ae-1fb0-4666-98db-2177fe9bf31c", testdata.Org1.ID, testdata.Cathy.ID, testdata.Amazonconnect.ID, "", testdata.DefaultTopic.ID, "Where are my cookies?", models.NilUserID, map[string]interface{}{
 		"contact-uuid":       string(testdata.Cathy.UUID),
 		"contact-display":    "Cathy",
 		"contact-identifier": testdata.Cathy.URN.Path(),

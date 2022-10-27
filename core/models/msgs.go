@@ -991,7 +991,7 @@ func CreateBroadcastMessages(ctx context.Context, rt *runtime.Runtime, oa *OrgAs
 
 		// create our outgoing message
 		out := flows.NewMsgOut(urn, channel.ChannelReference(), text, t.Attachments, t.QuickReplies, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})
-		msg, err := NewOutgoingMsg(rt.Config, channel, c.ID(), out, time.Now())
+		msg, err := NewOutgoingMsg(rt.Config, oa.Org(), channel, c.ID(), out, time.Now())
 		msg.SetBroadcastID(bcast.BroadcastID())
 		if err != nil {
 			return nil, errors.Wrapf(err, "error creating outgoing message")

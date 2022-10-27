@@ -8,7 +8,7 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/jmoiron/sqlx"
 	"github.com/nyaruka/gocommon/jsonx"
-	"github.com/greatnonprofits-nfp/goflow/test"
+	"github.com/nyaruka/goflow/test"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -19,7 +19,7 @@ func TestImportContactBatch(t *testing.T) {
 
 	defer testsuite.Reset(testsuite.ResetData)
 
-	importID := testdata.InsertContactImport(db, testdata.Org1, testdata.Admin)
+	importID := testdata.InsertContactImport(db, testdata.Org1, testdata.Admin, false)
 	batch1ID := testdata.InsertContactImportBatch(db, importID, []byte(`[
 		{"name": "Norbert", "language": "eng", "urns": ["tel:+16055740001"]},
 		{"name": "Leah", "urns": ["tel:+16055740002"]}

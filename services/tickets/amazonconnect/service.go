@@ -13,9 +13,9 @@ import (
 
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/mailroom/core/models"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/utils"
-	"github.com/nyaruka/mailroom/config"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/utils"
+	"github.com/nyaruka/mailroom/runtime"
 )
 
 const (
@@ -48,14 +48,13 @@ func init() {
 }
 
 type service struct {
-	rtConfig *config.Config
 	client   *Client
 	ticketer *flows.Ticketer
 	redactor utils.Redactor
 }
 
 // NewService creates a new Amazon Connect ticket service
-func NewService(rtCfg *config.Config, httpClient *http.Client, httpRetries *httpx.RetryConfig, ticketer *flows.Ticketer, config map[string]string) (models.TicketService, error) {
+func NewService(rtCfg *runtime.Config, httpClient *http.Client, httpRetries *httpx.RetryConfig, ticketer *flows.Ticketer, config map[string]string) (models.TicketService, error) {
 	authToken := rtCfg.AmazonConnectAuthToken
 	endpointURL := config[configurationEndpointURL]
 
@@ -68,7 +67,6 @@ func NewService(rtCfg *config.Config, httpClient *http.Client, httpRetries *http
 			client:   NewClient(httpClient, httpRetries, authToken, endpointURL),
 			ticketer: ticketer,
 			redactor: utils.NewRedactor(flows.RedactionMask, authToken, endpointURL),
-			rtConfig: rtCfg,
 		}, nil
 	}
 
@@ -76,8 +74,8 @@ func NewService(rtCfg *config.Config, httpClient *http.Client, httpRetries *http
 }
 
 // Open opens a ticket which for Amazon Connect means create a Chat Channel associated to a Chat User
-func (s *service) Open(session flows.Session, subject, body string, logHTTP flows.HTTPLogCallback) (*flows.Ticket, error) {
-	ticket := flows.OpenTicket(s.ticketer, subject, body)
+func (s *service) Open(session flows.Session, topic *flows.Topic, body string, assignee *flows.User, logHTTP flows.HTTPLogCallback) (*flows.Ticket, error) {
+	ticket := flows.OpenTicket(s.ticketer, topic, body, assignee)
 	contact := session.Contact()
 
 	// get messages for history
@@ -139,7 +137,6 @@ func (s *service) Forward(ticket *models.Ticket, msgUUID flows.MsgUUID, text str
 }
 
 func (s *service) Close(tickets []*models.Ticket, logHTTP flows.HTTPLogCallback) error {
-	// TODO Raj will check if Amazon Connect supports ticket closing webhook
 	return nil
 }
 

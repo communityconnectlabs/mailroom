@@ -3,7 +3,7 @@ package models
 import (
 	"context"
 	"database/sql/driver"
-	"github.com/greatnonprofits-nfp/goflow/services/classification/dialogflowcl"
+	"github.com/nyaruka/goflow/services/classification/dialogflowcl"
 	"github.com/nyaruka/gocommon/jsonx"
 	"time"
 
@@ -31,9 +31,9 @@ const NilClassifierID = ClassifierID(0)
 
 // classifier type constants
 const (
-	ClassifierTypeWit    = "wit"
-	ClassifierTypeLuis   = "luis"
-	ClassifierTypeBothub = "bothub"
+	ClassifierTypeWit        = "wit"
+	ClassifierTypeLuis       = "luis"
+	ClassifierTypeBothub     = "bothub"
 	ClassifierTypeDialogflow = "dialogflow"
 )
 

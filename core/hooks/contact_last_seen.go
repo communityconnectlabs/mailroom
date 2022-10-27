@@ -3,7 +3,7 @@ package hooks
 import (
 	"context"
 
-	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/runtime"
 

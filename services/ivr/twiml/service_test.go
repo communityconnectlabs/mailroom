@@ -8,11 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/flows/events"
-	"github.com/greatnonprofits-nfp/goflow/flows/routers/waits"
-	"github.com/greatnonprofits-nfp/goflow/flows/routers/waits/hints"
-	"github.com/greatnonprofits-nfp/goflow/utils"
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/goflow/assets"
@@ -25,6 +20,12 @@ import (
 
 	"github.com/nyaruka/goflow/flows"
 	"github.com/stretchr/testify/assert"
+	"net/url"
+	"github.com/nyaruka/mailroom/core/ivr"
+	"github.com/nyaruka/gocommon/httpx"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
+	"github.com/nyaruka/mailroom/core/models"
+	"github.com/nyaruka/mailroom/runtime"
 )
 
 func TestResponseForSprint(t *testing.T) {
@@ -125,15 +126,17 @@ func TestURNForRequest(t *testing.T) {
 }
 
 func TestResumeForRequest(t *testing.T) {
-	ctx, _, db, _ := testsuite.Reset()
+	ctx, rt, _, _ := testsuite.Get()
 
-	tClient, err := getTestClient(ctx, db, t)
+	testsuite.Reset(testsuite.ResetDB)
+
+	tClient, err := getTestClient(ctx, rt, t)
 	assert.NoError(t, err)
 
 	req, err := getTestRequest(`{}`, "")
 	req.Form = url.Values{
-		"wait_type": []string{"dial"},
-		"DialCallStatus": []string{"busy"},
+		"wait_type":        []string{"dial"},
+		"DialCallStatus":   []string{"busy"},
 		"DialCallDuration": []string{"10"},
 	}
 
@@ -142,7 +145,7 @@ func TestResumeForRequest(t *testing.T) {
 	assert.Equal(t, ivr.DialResume{Status: "busy", Duration: 10}, resume)
 
 	req.Form = url.Values{
-		"wait_type": []string{"record"},
+		"wait_type":    []string{"record"},
 		"RecordingUrl": []string{"example.com/chill-town"},
 	}
 
@@ -152,18 +155,17 @@ func TestResumeForRequest(t *testing.T) {
 }
 
 func TestValidateRequestSignature(t *testing.T) {
-	ctx, _, db, _ := testsuite.Reset()
-	defer testsuite.Reset()
+	ctx, rt, _, _ := testsuite.Get()
+	defer testsuite.Reset(testsuite.ResetDB)
 
-	tClient, err := getTestClient(ctx, db, t)
+	tClient, err := getTestClient(ctx, rt, t)
 	postFormData := url.Values{"Digits": []string{"10"}}
-	sig, err := twCalculateSignature("https://temba.io/", postFormData, "twillio")
+	sig, err := twiml.TwCalculateSignature("https://temba.io/", postFormData, "twilio")
 	assert.NoError(t, err)
 
 	req, err := getTestRequest(`{}`, "")
 	assert.NoError(t, err)
 
-	fmt.Println(string(sig))
 	err = tClient.ValidateRequestSignature(req)
 	assert.Error(t, err, "missing request signature header")
 
@@ -184,12 +186,12 @@ func getTestRequest(reqBody string, reqPath string) (*http.Request, error) {
 	return httpx.NewRequest("GET", reqURL, body, headers)
 }
 
-func getTestClient(ctx context.Context, db *sqlx.DB, t *testing.T) (ivr.Client, error) {
-	db.MustExec(`UPDATE channels_channel SET config = '{"account_sid": "twillio", "auth_token": "twillio"}' WHERE id = $1`, testdata.TwilioChannel.ID)
-	oa, err := models.GetOrgAssets(ctx, db, testdata.Org1.ID)
+func getTestClient(ctx context.Context, rt *runtime.Runtime, t *testing.T) (ivr.Service, error) {
+	rt.DB.MustExec(`UPDATE channels_channel SET config = '{"account_sid": "twilio", "auth_token": "twilio"}' WHERE id = $1`, testdata.TwilioChannel.ID)
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
 	assert.NoError(t, err)
 	channel := oa.ChannelByUUID(testdata.TwilioChannel.UUID)
 	assert.NotNil(t, channel)
 
-	return NewClientFromChannel(http.DefaultClient, channel)
+	return twiml.NewServiceFromChannel(http.DefaultClient, channel)
 }

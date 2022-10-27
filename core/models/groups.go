@@ -429,5 +429,5 @@ func PopulateDynamicGroup(ctx context.Context, db *sqlx.DB, es *elastic.Client, 
 		return 0, errors.Wrapf(err, "error updating contact modified_on after group population")
 	}
 
-	return len(new), nil
+	return len(newOnes), nil
 }

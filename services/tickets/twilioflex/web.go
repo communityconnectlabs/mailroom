@@ -12,8 +12,8 @@ import (
 	"github.com/nyaruka/mailroom/runtime"
 	"github.com/nyaruka/mailroom/services/tickets"
 	"github.com/nyaruka/mailroom/web"
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/flows"
 	"github.com/pkg/errors"
 )
 
@@ -51,7 +51,7 @@ func handleEventCallback(ctx context.Context, rt *runtime.Runtime, r *http.Reque
 		return errors.Wrapf(err, "error decoding form"), http.StatusBadRequest, nil
 	}
 
-	ticketer, _, err := tickets.FromTicketerUUID(ctx, rt.DB, ticketerUUID, typeTwilioFlex)
+	ticketer, _, err := tickets.FromTicketerUUID(ctx, rt, ticketerUUID, typeTwilioFlex)
 	if err != nil {
 		return errors.Errorf("no such ticketer %s", ticketerUUID), http.StatusNotFound, nil
 	}
@@ -63,12 +63,12 @@ func handleEventCallback(ctx context.Context, rt *runtime.Runtime, r *http.Reque
 
 	ticketUUID := uuids.UUID(chi.URLParam(r, "ticket"))
 
-	ticket, _, _, err := tickets.FromTicketUUID(ctx, rt.DB, flows.TicketUUID(ticketUUID), typeTwilioFlex)
+	ticket, _, _, err := tickets.FromTicketUUID(ctx, rt, flows.TicketUUID(ticketUUID), typeTwilioFlex)
 	if err != nil {
 		return errors.Errorf("no such ticket %s", ticketUUID), http.StatusNotFound, nil
 	}
 
-	oa, err := models.GetOrgAssets(ctx, rt.DB, ticket.OrgID())
+	oa, err := models.GetOrgAssets(ctx, rt, ticket.OrgID())
 	if err != nil {
 		return err, http.StatusBadRequest, nil
 	}
@@ -109,7 +109,7 @@ func handleEventCallback(ctx context.Context, rt *runtime.Runtime, r *http.Reque
 			return err, http.StatusBadRequest, nil
 		}
 		if jsonMap["status"] == "INACTIVE" {
-			err = tickets.CloseTicket(ctx, rt, oa, ticket, false, nil)
+			err = tickets.Close(ctx, rt, oa, ticket, false, nil)
 			if err != nil {
 				return err, http.StatusBadRequest, nil
 			}

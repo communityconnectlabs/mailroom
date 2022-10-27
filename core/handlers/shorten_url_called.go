@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"github.com/greatnonprofits-nfp/goflow/flows/events"
+	"github.com/nyaruka/goflow/flows/events"
 	"github.com/nyaruka/mailroom/core/models"
 )
 

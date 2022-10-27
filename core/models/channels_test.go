@@ -3,7 +3,7 @@ package models_test
 import (
 	"testing"
 
-	"github.com/greatnonprofits-nfp/goflow/assets"
+	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
@@ -91,13 +91,13 @@ func TestChannels(t *testing.T) {
 }
 
 func TestConfigValue(t *testing.T) {
-	ctx, _, db, _ := testsuite.Get()
+	ctx, rt, db, _ := testsuite.Get()
 
-	defer testsuite.Reset()
+	defer testsuite.Reset(testsuite.ResetDB)
 
 	// add some tel specific config to channel 2
 	db.MustExec(`UPDATE channels_channel SET config = '{"matching_prefixes": ["250", "251"], "allow_international": true, "delay": 1.5, "user_value": "vonage"}' WHERE id = $1`, testdata.VonageChannel.ID)
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, 1, models.RefreshChannels)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, 1, models.RefreshChannels)
 	require.NoError(t, err)
 
 	channel := oa.ChannelByID(testdata.VonageChannel.ID)

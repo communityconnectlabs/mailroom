@@ -1,10 +1,10 @@
 package models_test
 
 import (
-	"github.com/greatnonprofits-nfp/goflow/flows"
+	"github.com/nyaruka/goflow/flows"
 	"testing"
 
-	"github.com/greatnonprofits-nfp/goflow/assets"
+	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
@@ -45,9 +45,9 @@ func TestClassifiers(t *testing.T) {
 }
 
 func TestClassifier_AsService(t *testing.T) {
-	ctx, _, db, _ := testsuite.Get()
+	ctx, rt, _, _ := testsuite.Get()
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshClassifiers)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, testdata.Org1.ID, models.RefreshClassifiers)
 	require.NoError(t, err)
 
 	classifiers, err := oa.Classifiers()
@@ -56,7 +56,7 @@ func TestClassifier_AsService(t *testing.T) {
 	classifier := &flows.Classifier{Classifier: classifier1}
 
 	c := classifier1.(*models.Classifier)
-	classifierService, err := c.AsService(classifier)
+	classifierService, err := c.AsService(rt.Config, classifier)
 	assert.NoError(t, err)
 	_, ok := classifierService.(flows.ClassificationService)
 

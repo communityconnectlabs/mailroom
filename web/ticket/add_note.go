@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/greatnonprofits-nfp/goflow/utils"
+	"github.com/nyaruka/goflow/utils"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/runtime"
 	"github.com/nyaruka/mailroom/web"

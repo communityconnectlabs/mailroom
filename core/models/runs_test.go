@@ -3,12 +3,12 @@ package models_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/envs"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/flows/engine"
-	"github.com/greatnonprofits-nfp/goflow/flows/triggers"
-	"github.com/greatnonprofits-nfp/goflow/test"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/envs"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/flows/engine"
+	"github.com/nyaruka/goflow/flows/triggers"
+	"github.com/nyaruka/goflow/test"
 	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/gocommon/jsonx"
 	"github.com/nyaruka/gocommon/urns"
@@ -20,21 +20,19 @@ import (
 )
 
 func TestNewSession(t *testing.T) {
-	testsuite.Reset()
-	ctx, _, db, _ := testsuite.Get()
-	rp := testsuite.RP()
+	testsuite.Reset(testsuite.ResetDB)
+	ctx, rt, db, _ := testsuite.Get()
 	txCTX, cancel := context.WithCancel(ctx)
-	st := testsuite.SessionStorage()
 
 	tx, err := db.BeginTxx(txCTX, nil)
 	assert.NoError(t, err)
 
 	defer func() {
 		cancel()
-		testsuite.Reset()
+		testsuite.Reset(testsuite.ResetDB)
 	}()
 
-	oa, err := models.GetOrgAssetsWithRefresh(ctx, db, testdata.Org1.ID, models.RefreshOrg)
+	oa, err := models.GetOrgAssetsWithRefresh(ctx, rt, testdata.Org1.ID, models.RefreshOrg)
 	assert.NoError(t, err)
 
 	assetJSON, err := jsonx.Marshal(json.RawMessage(getSessionAssetsJSON()))
@@ -52,7 +50,7 @@ func TestNewSession(t *testing.T) {
 	assert.Equal(t, fs.UUID(), session.UUID())
 	assert.Equal(t, models.SessionID(0), session.ID())
 
-	sessions, err := models.WriteSessions(ctx, tx, rp, st, oa, ss, sprints, nil)
+	sessions, err := models.WriteSessions(ctx, rt, tx, oa, ss, sprints, nil)
 	assert.NoError(t, err)
 
 	session = sessions[0]
@@ -63,25 +61,25 @@ func TestNewSession(t *testing.T) {
 	sa, err := test.CreateSessionAssets(assetJSON, "")
 	assert.NoError(t, err)
 
-	err = session.WriteUpdatedSession(ctx, tx, rp, st, oa, fs, sprint, nil)
+	err = session.WriteUpdatedSession(ctx, rt, tx, oa, fs, sprint, nil)
 	assert.EqualError(t, err, "missing seen runs, cannot update session")
 
 	var env envs.Environment
-	fs, err = session.FlowSession(sa, env)
+	fs, err = session.FlowSession(rt.Config, sa, env)
 	assert.NoError(t, err)
 
-	err = session.WriteUpdatedSession(ctx, tx, rp, st, oa, fs, sprint, nil)
+	err = session.WriteUpdatedSession(ctx, rt, tx, oa, fs, sprint, nil)
 	assert.NoError(t, err)
 }
 
 func TestNewEmptyRun(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset()
+	testsuite.Reset(testsuite.ResetDB)
 	contactID := flows.ContactID(testdata.Cathy.ID)
 	flowID := testdata.Favorites.ID
 	orgID := testdata.Org1.ID
 	runSQL := `SELECT COUNT(*) FROM flows_flowrun WHERE contact_id = $1 AND flow_id = $2 AND org_id = $3`
-	
+
 	testsuite.AssertQuery(t, db, runSQL, contactID, flowID, orgID).Returns(0)
 
 	err := models.NewEmptyRun(ctx, db, contactID, flowID, orgID)
@@ -265,7 +263,7 @@ func createSession(assetsJSON json.RawMessage, flowUUID assets.FlowUUID) (flows.
 		fields,
 		nil,
 		nil,
-		)
+	)
 	trigger := triggers.NewBuilder(env, flow.Reference(), contact).Manual().Build()
 	eng := engine.NewBuilder().Build()
 

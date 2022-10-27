@@ -102,7 +102,7 @@ func TestOutgoingMsgs(t *testing.T) {
 		channel := oa.ChannelByUUID(tc.ChannelUUID)
 
 		flowMsg := flows.NewMsgOut(tc.URN, assets.NewChannelReference(tc.ChannelUUID, "Test Channel"), tc.Text, tc.Attachments, tc.QuickReplies, nil, tc.Topic, "", flows.ShareableIconsConfig{})
-		msg, err := models.NewOutgoingMsg(rt.Config, channel, tc.ContactID, flowMsg, now)
+		msg, err := models.NewOutgoingMsg(rt.Config, oa.Org(), channel, tc.ContactID, flowMsg, now)
 
 		if tc.HasError {
 			assert.Error(t, err)
@@ -245,7 +245,7 @@ func TestMarkMessages(t *testing.T) {
 	insertMsg := func(text string) *models.Msg {
 		urn := urns.URN(fmt.Sprintf("tel:+250700000001?id=%d", testdata.Cathy.URNID))
 		flowMsg := flows.NewMsgOut(urn, channel.ChannelReference(), text, nil, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})
-		msg, err := models.NewOutgoingMsg(rt.Config, channel, testdata.Cathy.ID, flowMsg, time.Now())
+		msg, err := models.NewOutgoingMsg(rt.Config, oa.Org(), channel, testdata.Cathy.ID, flowMsg, time.Now())
 		require.NoError(t, err)
 
 		err = models.InsertMessages(ctx, db, []*models.Msg{msg})
@@ -360,7 +360,7 @@ func TestNewOutgoingIVR(t *testing.T) {
 
 	createdOn := time.Date(2021, 7, 26, 12, 6, 30, 0, time.UTC)
 
-	flowMsg := flows.NewMsgOut(testdata.Cathy.URN, vonage.ChannelReference(), "Hello", []utils.Attachment{"audio/mp3:http://example.com/hi.mp3"}, nil, nil, flows.NilMsgTopic)
+	flowMsg := flows.NewMsgOut(testdata.Cathy.URN, vonage.ChannelReference(), "Hello", []utils.Attachment{"audio/mp3:http://example.com/hi.mp3"}, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})
 	dbMsg := models.NewOutgoingIVR(rt.Config, testdata.Org1.ID, conn, flowMsg, createdOn)
 
 	assert.Equal(t, flowMsg.UUID(), dbMsg.UUID())

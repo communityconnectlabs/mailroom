@@ -11,22 +11,22 @@ import (
 	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/gocommon/uuids"
-	"github.com/greatnonprofits-nfp/goflow/assets"
-	"github.com/greatnonprofits-nfp/goflow/envs"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/test"
-	"github.com/greatnonprofits-nfp/goflow/utils"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/envs"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/test"
+	"github.com/nyaruka/goflow/utils"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/services/tickets/twilioflex"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/greatnonprofits-nfp/goflow/assets/static/types"
+	"github.com/nyaruka/goflow/assets/static"
 )
 
 func TestOpenAndForward(t *testing.T) {
-	_, rt, _, _ := testsuite.Get()
+	ctx, rt, _, _ := testsuite.Get()
 
 	defer dates.SetNowSource(dates.DefaultNowSource)
 	dates.SetNowSource(dates.NewSequentialNowSource(time.Date(2019, 10, 7, 15, 21, 30, 0, time.UTC)))
@@ -335,7 +335,7 @@ func TestOpenAndForward(t *testing.T) {
 		},
 	}))
 
-	ticketer := flows.NewTicketer(types.NewTicketer(assets.TicketerUUID(uuids.New()), "Support", "twilioflex"))
+	ticketer := flows.NewTicketer(static.NewTicketer(assets.TicketerUUID(uuids.New()), "Support", "twilioflex"))
 
 	_, err = twilioflex.NewService(
 		rt.Config,
@@ -382,16 +382,20 @@ func TestOpenAndForward(t *testing.T) {
 	assert.NoError(t, err)
 
 	logger := &flows.HTTPLogger{}
-	ticket, err := svc.Open(session, "Need help", "Where are my cookies?", logger.Log)
+	oa, err := models.GetOrgAssets(ctx, rt, testdata.Org1.ID)
+	require.NoError(t, err)
+	defaultTopic := oa.SessionAssets().Topics().FindByName("General")
+
+	ticket, err := svc.Open(session, defaultTopic, "Where are my cookies?", nil, logger.Log)
 
 	assert.NoError(t, err)
 	assert.Equal(t, flows.TicketUUID("e7187099-7d38-4f60-955c-325957214c42"), ticket.UUID())
-	assert.Equal(t, "Need help", ticket.Subject())
+	assert.Equal(t, "Need help", ticket.Topic())
 	assert.Equal(t, "Where are my cookies?", ticket.Body())
 	assert.Equal(t, "CH6442c09c93ba4d13966fa42e9b78f620", ticket.ExternalID())
 	assert.Equal(t, 7, len(logger.Logs))
 
-	dbTicket := models.NewTicket(ticket.UUID(), testdata.Org1.ID, testdata.Cathy.ID, testdata.Twilioflex.ID, "CH6442c09c93ba4d13966fa42e9b78f620", "Need help", "Where are my cookies?", models.NilUserID, map[string]interface{}{
+	dbTicket := models.NewTicket(ticket.UUID(), testdata.Org1.ID, testdata.Cathy.ID, testdata.Twilioflex.ID, "CH6442c09c93ba4d13966fa42e9b78f620", testdata.DefaultTopic.ID, "Where are my cookies?", models.NilUserID, map[string]interface{}{
 		"contact-uuid":    string(testdata.Cathy.UUID),
 		"contact-display": "Cathy",
 	})
@@ -404,7 +408,7 @@ func TestOpenAndForward(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(logger.Logs))
 
-	dbTicket2 := models.NewTicket("645eee60-7e84-4a9e-ade3-4fce01ae28f1", testdata.Org1.ID, testdata.Cathy.ID, testdata.Twilioflex.ID, "CH180fa48ef2ba40a08fa5c9fb5c8ddd99", "Need help", "Where are my cookies?", models.NilUserID, map[string]interface{}{
+	dbTicket2 := models.NewTicket("645eee60-7e84-4a9e-ade3-4fce01ae28f1", testdata.Org1.ID, testdata.Cathy.ID, testdata.Twilioflex.ID, "CH180fa48ef2ba40a08fa5c9fb5c8ddd99", testdata.DefaultTopic.ID, "Where are my cookies?", models.NilUserID, map[string]interface{}{
 		"contact-uuid":    string(testdata.Cathy.UUID),
 		"contact-display": "Cathy",
 	})
@@ -523,7 +527,7 @@ func TestCloseAndReopen(t *testing.T) {
 		},
 	}))
 
-	ticketer := flows.NewTicketer(types.NewTicketer(assets.TicketerUUID(uuids.New()), "Support", "twilioflex"))
+	ticketer := flows.NewTicketer(static.NewTicketer(assets.TicketerUUID(uuids.New()), "Support", "twilioflex"))
 
 	svc, err := twilioflex.NewService(
 		rt.Config,
@@ -540,8 +544,8 @@ func TestCloseAndReopen(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	ticket1 := models.NewTicket("88bfa1dc-be33-45c2-b469-294ecb0eba90", testdata.Org1.ID, testdata.Cathy.ID, testdata.Twilioflex.ID, "CH6442c09c93ba4d13966fa42e9b78f620", "Need help", "Where my cookies?", models.NilUserID, nil)
-	ticket2 := models.NewTicket("645eee60-7e84-4a9e-ade3-4fce01ae28f1", testdata.Org1.ID, testdata.Bob.ID, testdata.Twilioflex.ID, "CH8692e17c93ba4d13966fa42e9b78f853", "Need help", "Where my shoes?", models.NilUserID, nil)
+	ticket1 := models.NewTicket("88bfa1dc-be33-45c2-b469-294ecb0eba90", testdata.Org1.ID, testdata.Cathy.ID, testdata.Twilioflex.ID, "CH6442c09c93ba4d13966fa42e9b78f620", testdata.DefaultTopic.ID, "Where my cookies?", models.NilUserID, nil)
+	ticket2 := models.NewTicket("645eee60-7e84-4a9e-ade3-4fce01ae28f1", testdata.Org1.ID, testdata.Bob.ID, testdata.Twilioflex.ID, "CH8692e17c93ba4d13966fa42e9b78f853", testdata.DefaultTopic.ID, "Where my shoes?", models.NilUserID, nil)
 
 	logger := &flows.HTTPLogger{}
 	err = svc.Close([]*models.Ticket{ticket1, ticket2}, logger.Log)

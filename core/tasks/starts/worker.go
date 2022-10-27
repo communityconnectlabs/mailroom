@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/greatnonprofits-nfp/goflow/contactql"
-	"github.com/greatnonprofits-nfp/goflow/envs"
+	"github.com/nyaruka/goflow/contactql"
+	"github.com/nyaruka/goflow/envs"
 	"github.com/nyaruka/mailroom"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/core/queue"

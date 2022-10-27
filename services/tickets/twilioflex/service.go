@@ -16,9 +16,9 @@ import (
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/gocommon/jsonx"
 	"github.com/nyaruka/mailroom/core/models"
-	"github.com/greatnonprofits-nfp/goflow/flows"
-	"github.com/greatnonprofits-nfp/goflow/utils"
-	"github.com/nyaruka/mailroom/config"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/goflow/utils"
+	"github.com/nyaruka/mailroom/runtime"
 )
 
 const (
@@ -55,14 +55,14 @@ func init() {
 }
 
 type service struct {
-	rtConfig *config.Config
+	rtConfig *runtime.Config
 	client   *Client
 	ticketer *flows.Ticketer
 	redactor utils.Redactor
 }
 
 // newService creates a new twilio flex ticket service
-func NewService(rtCfg *config.Config, httpClient *http.Client, httpRetries *httpx.RetryConfig, ticketer *flows.Ticketer, config map[string]string) (models.TicketService, error) {
+func NewService(rtCfg *runtime.Config, httpClient *http.Client, httpRetries *httpx.RetryConfig, ticketer *flows.Ticketer, config map[string]string) (models.TicketService, error) {
 	authToken := config[configurationAuthToken]
 	accountSid := config[configurationAccountSid]
 	chatServiceSid := config[configurationChatServiceSid]
@@ -86,8 +86,8 @@ func NewService(rtCfg *config.Config, httpClient *http.Client, httpRetries *http
 }
 
 // Open opens a ticket which for Twilioflex means create a Chat Channel associated to a Chat User
-func (s *service) Open(session flows.Session, subject, body string, logHTTP flows.HTTPLogCallback) (*flows.Ticket, error) {
-	ticket := flows.OpenTicket(s.ticketer, subject, body)
+func (s *service) Open(session flows.Session, topic *flows.Topic, body string, assignee *flows.User, logHTTP flows.HTTPLogCallback) (*flows.Ticket, error) {
+	ticket := flows.OpenTicket(s.ticketer, topic, body, assignee)
 	contact := session.Contact()
 	chatUser := &CreateChatUserParams{
 		Identity:     fmt.Sprint(contact.ID()),
