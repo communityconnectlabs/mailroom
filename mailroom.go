@@ -113,7 +113,7 @@ func (mr *Mailroom) Start() error {
 			Region:             c.S3Region,
 			DisableSSL:         c.S3DisableSSL,
 			ForcePathStyle:     c.S3ForcePathStyle,
-			WorkersPerBatch:    32,
+			MaxRetries:         c.WebhooksMaxRetries,
 		})
 		if err != nil {
 			return err
