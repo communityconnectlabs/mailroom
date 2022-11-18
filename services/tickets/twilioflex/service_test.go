@@ -390,7 +390,7 @@ func TestOpenAndForward(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, flows.TicketUUID("e7187099-7d38-4f60-955c-325957214c42"), ticket.UUID())
-	assert.Equal(t, "Need help", ticket.Topic())
+	assert.Equal(t, "General", ticket.Topic().Name())
 	assert.Equal(t, "Where are my cookies?", ticket.Body())
 	assert.Equal(t, "CH6442c09c93ba4d13966fa42e9b78f620", ticket.ExternalID())
 	assert.Equal(t, 7, len(logger.Logs))

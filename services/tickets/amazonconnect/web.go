@@ -43,6 +43,11 @@ func handleEventCallback(ctx context.Context, rt *runtime.Runtime, r *http.Reque
 		return errors.Errorf("no such ticket %s", ticketUUID), http.StatusNotFound, nil
 	}
 
+	oa, err := models.GetOrgAssets(ctx, rt, ticket.OrgID())
+	if err != nil {
+		return err, http.StatusBadRequest, nil
+	}
+
 	switch request.EventType {
 	case "agent-message":
 		_, err = tickets.SendReply(ctx, rt, ticket, request.Text, []*tickets.File{})
@@ -50,7 +55,7 @@ func handleEventCallback(ctx context.Context, rt *runtime.Runtime, r *http.Reque
 			return err, http.StatusBadRequest, nil
 		}
 	case "close-ticket":
-		err = tickets.Close(ctx, rt, nil, ticket, false, l)
+		err = tickets.Close(ctx, rt, oa, ticket, false, l)
 
 	default:
 		err = errors.New("invalid event type")
