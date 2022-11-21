@@ -11,7 +11,6 @@ import (
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 
-	"github.com/lib/pq"
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -165,11 +164,5 @@ func TestDynamicGroups(t *testing.T) {
 
 		testsuite.AssertQuery(t, db, `SELECT count(*) from contacts_contactgroup WHERE id = $1 AND status = 'R'`, testdata.DoctorsGroup.ID).
 			Returns(1, "wrong number of contacts in group for query: %s", tc.Query)
-
-		testsuite.AssertQuery(t, db, `SELECT count(*) from campaigns_eventfire WHERE event_id = $1`, eventID).
-			Returns(len(tc.EventContactIDs), "wrong number of contacts with events for query: %s", tc.Query)
-
-		testsuite.AssertQuery(t, db, `SELECT count(*) from campaigns_eventfire WHERE event_id = $1 AND contact_id = ANY($2)`, eventID, pq.Array(tc.EventContactIDs)).
-			Returns(len(tc.EventContactIDs), "wrong contacts with events for query: %s", tc.Query)
 	}
 }
