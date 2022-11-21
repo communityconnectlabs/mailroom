@@ -387,7 +387,7 @@ WHERE
 	fired IS NULL
 `
 
-// EventFireResult represents how a event fire was fired
+// EventFireResult represents how an event fire was fired
 type EventFireResult = null.String
 
 const (
@@ -545,7 +545,7 @@ func DeleteUnfiredEventsForGroupRemoval(ctx context.Context, tx Queryer, org *Or
 	return DeleteUnfiredEventFires(ctx, tx, fds)
 }
 
-// AddCampaignEventsForGroupAddition first removes the passed in contacts from any events that group change may effect, then recreates
+// AddCampaignEventsForGroupAddition first removes the passed in contacts from any events that group change may affect, then recreates
 // the campaign events they qualify for.
 func AddCampaignEventsForGroupAddition(ctx context.Context, tx Queryer, org *OrgAssets, contacts []*flows.Contact, groupID GroupID) error {
 	cids := make([]ContactID, len(contacts))

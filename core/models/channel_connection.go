@@ -26,7 +26,7 @@ type ConnectionError null.String
 // ConnectionDirection is the type for the direction of a connection
 type ConnectionDirection string
 
-// ConnectionType is the type for the type of a connection
+// ConnectionType is the type for the type of connection
 type ConnectionType string
 
 // connection direction constants

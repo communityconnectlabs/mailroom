@@ -83,7 +83,7 @@ func (q *Query) Returns(expected interface{}, msgAndArgs ...interface{}) {
 	err := q.db.Get(&actual, q.sql, q.args...)
 	assert.NoError(q.t, err, msgAndArgs...)
 
-	// not sure why but if you pass an int you get back an int64..
+	// not sure why but if you pass an int you get back an int64
 	switch expected.(type) {
 	case int:
 		actual = int(actual.(int64))
