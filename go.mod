@@ -2,7 +2,7 @@ module github.com/nyaruka/mailroom
 
 replace (
 	github.com/nyaruka/gocommon => github.com/greatnonprofits-nfp/gocommon v1.14.3
-	github.com/nyaruka/goflow => github.com/greatnonprofits-nfp/goflow v0.140.1
+	github.com/nyaruka/goflow => github.com/greatnonprofits-nfp/goflow v0.140.2
 )
 
 require (
