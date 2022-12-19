@@ -27,7 +27,7 @@ require (
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/nyaruka/ezconf v0.2.1
 	github.com/nyaruka/gocommon v1.14.1
-	github.com/nyaruka/goflow v0.140.1
+	github.com/nyaruka/goflow v0.140.2
 	github.com/nyaruka/librato v1.0.0
 	github.com/nyaruka/logrus_sentry v0.8.2-0.20190129182604-c2962b80ba7d
 	github.com/nyaruka/null v1.2.0
