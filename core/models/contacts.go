@@ -10,20 +10,20 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nyaruka/gocommon/dates"
+	"github.com/nyaruka/gocommon/urns"
+	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/goflow/envs"
 	"github.com/nyaruka/goflow/excellent/types"
 	"github.com/nyaruka/goflow/flows"
-	"github.com/nyaruka/gocommon/dates"
-	"github.com/nyaruka/gocommon/urns"
-	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/mailroom/utils/dbutil"
 	"github.com/nyaruka/null"
 
 	"github.com/lib/pq"
+	"github.com/nyaruka/mailroom/runtime"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/nyaruka/mailroom/runtime"
 )
 
 // URNID is our type for urn ids, which can be null
@@ -1158,6 +1158,10 @@ func AddContactToOptOutedGroups(ctx context.Context, rt *runtime.Runtime, orgID 
 	if evt != nil {
 		extra := evt.Extra()
 		groupsToAdd := make([]*GroupAdd, 0)
+		if _, ok := extra["opted_out_groups"]; !ok {
+			return nil
+		}
+
 		contactGroups := extra["opted_out_groups"].([]interface{})
 		for _, group := range contactGroups {
 			groupUUID := assets.GroupUUID(group.(string))

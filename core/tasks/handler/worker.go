@@ -17,16 +17,16 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/gomodule/redigo/redis"
+	"github.com/jmoiron/sqlx"
+	"github.com/nfnt/resize"
+	"github.com/nyaruka/gocommon/storage"
+	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/goflow/excellent/types"
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/events"
 	"github.com/nyaruka/goflow/flows/resumes"
 	"github.com/nyaruka/goflow/flows/triggers"
 	"github.com/nyaruka/goflow/utils"
-	"github.com/jmoiron/sqlx"
-	"github.com/nfnt/resize"
-	"github.com/nyaruka/gocommon/storage"
-	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/librato"
 	"github.com/nyaruka/mailroom"
 	"github.com/nyaruka/mailroom/core/models"
@@ -513,6 +513,11 @@ func handleStopEvent(ctx context.Context, rt *runtime.Runtime, event *StopEvent)
 	tx, err := rt.DB.BeginTxx(ctx, nil)
 	if err != nil {
 		return errors.Wrapf(err, "unable to start transaction for stopping contact")
+	}
+
+	err = models.UpdateContactOptOutChannelEvent(ctx, rt, event.OrgID, event.ContactID)
+	if err != nil {
+		return errors.Wrapf(err, "unable to update opt-out channel event")
 	}
 
 	err = models.StopContact(ctx, tx, event.OrgID, event.ContactID)
