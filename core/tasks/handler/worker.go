@@ -526,6 +526,12 @@ func handleStopEvent(ctx context.Context, rt *runtime.Runtime, event *StopEvent)
 		return err
 	}
 
+	err = models.InterruptContactRuns(ctx, tx, "M", []flows.ContactID{flows.ContactID(event.ContactID)}, event.OccurredOn)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	err = models.UpdateContactLastSeenOn(ctx, tx, event.ContactID, event.OccurredOn)
 	if err != nil {
 		tx.Rollback()
