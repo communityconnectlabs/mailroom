@@ -526,6 +526,12 @@ func handleStopEvent(ctx context.Context, rt *runtime.Runtime, event *StopEvent)
 		return err
 	}
 
+	err = models.InterruptContactRuns(ctx, tx, "M", []flows.ContactID{flows.ContactID(event.ContactID)}, event.OccurredOn)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	err = models.UpdateContactLastSeenOn(ctx, tx, event.ContactID, event.OccurredOn)
 	if err != nil {
 		tx.Rollback()
@@ -609,6 +615,17 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s
 		}
 
 		newContact = true
+
+		// reload contact with updated status
+		contacts, err = models.LoadContacts(ctx, rt.ReadonlyDB, oa, []models.ContactID{event.ContactID})
+		if err != nil {
+			return errors.Wrapf(err, "error loading contact")
+		}
+		modelContact = contacts[0]
+		contact, err = modelContact.FlowContact(oa)
+		if err != nil {
+			return errors.Wrapf(err, "error creating flow contact")
+		}
 	}
 
 	// if this is a new contact, we need to calculate dynamic groups and campaigns
