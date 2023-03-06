@@ -10,7 +10,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
@@ -67,14 +66,14 @@ type Session struct {
 		WaitExpiresOn      *time.Time        `db:"wait_expires_on"`
 		WaitResumeOnExpire bool              `db:"wait_resume_on_expire"`
 		CurrentFlowID      FlowID            `db:"current_flow_id"`
-		ConnectionID       *ConnectionID     `db:"connection_id"`
+		CallID             *CallID           `db:"call_id"`
 	}
 
 	incomingMsgID      MsgID
 	incomingExternalID null.String
 
-	// any channel connection associated with this flow session
-	channelConnection *ChannelConnection
+	// any call associated with this flow session
+	call *Call
 
 	// time after our last message is sent that we should timeout
 	timeout *time.Duration
@@ -109,7 +108,7 @@ func (s *Session) WaitTimeoutOn() *time.Time          { return s.s.WaitTimeoutOn
 func (s *Session) WaitExpiresOn() *time.Time          { return s.s.WaitExpiresOn }
 func (s *Session) WaitResumeOnExpire() bool           { return s.s.WaitResumeOnExpire }
 func (s *Session) CurrentFlowID() FlowID              { return s.s.CurrentFlowID }
-func (s *Session) ConnectionID() *ConnectionID        { return s.s.ConnectionID }
+func (s *Session) CallID() *CallID                    { return s.s.CallID }
 func (s *Session) IncomingMsgID() MsgID               { return s.incomingMsgID }
 func (s *Session) IncomingMsgExternalID() null.String { return s.incomingExternalID }
 func (s *Session) Scene() *Scene                      { return s.scene }
@@ -166,20 +165,20 @@ func (s *Session) OutputMD5() string {
 }
 
 // SetIncomingMsg set the incoming message that this session should be associated with in this sprint
-func (s *Session) SetIncomingMsg(id flows.MsgID, externalID null.String) {
-	s.incomingMsgID = MsgID(id)
+func (s *Session) SetIncomingMsg(id MsgID, externalID null.String) {
+	s.incomingMsgID = id
 	s.incomingExternalID = externalID
 }
 
-// SetChannelConnection sets the channel connection associated with this sprint
-func (s *Session) SetChannelConnection(cc *ChannelConnection) {
-	connID := cc.ID()
-	s.s.ConnectionID = &connID
-	s.channelConnection = cc
+// SetCall sets the channel connection associated with this sprint
+func (s *Session) SetCall(c *Call) {
+	connID := c.ID()
+	s.s.CallID = &connID
+	s.call = c
 }
 
-func (s *Session) ChannelConnection() *ChannelConnection {
-	return s.channelConnection
+func (s *Session) Call() *Call {
+	return s.call
 }
 
 // FlowSession creates a flow session for the passed in session object. It also populates the runs we know about
@@ -389,9 +388,9 @@ func (s *Session) Update(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, 
 	}
 
 	// if this session is complete, so is any associated connection
-	if s.channelConnection != nil {
+	if s.call != nil {
 		if s.Status() == SessionStatusCompleted || s.Status() == SessionStatusFailed {
-			err := s.channelConnection.UpdateStatus(ctx, tx, ConnectionStatusCompleted, 0, time.Now())
+			err := s.call.UpdateStatus(ctx, tx, CallStatusCompleted, 0, time.Now())
 			if err != nil {
 				return errors.Wrapf(err, "error update channel connection")
 			}
@@ -567,26 +566,26 @@ func NewSession(ctx context.Context, tx *sqlx.Tx, oa *OrgAssets, fs flows.Sessio
 
 const sqlInsertWaitingSession = `
 INSERT INTO
-	flows_flowsession( uuid,  session_type,  status,  responded,  output,  output_url,  contact_id,  org_id, created_on, current_flow_id,  timeout_on,  wait_started_on,  wait_expires_on,  wait_resume_on_expire,  connection_id)
-               VALUES(:uuid, :session_type, :status, :responded, :output, :output_url, :contact_id, :org_id, NOW(),     :current_flow_id, :timeout_on, :wait_started_on, :wait_expires_on, :wait_resume_on_expire, :connection_id)
+	flows_flowsession( uuid,  session_type,  status,  responded,  output,  output_url,  contact_id,  org_id, created_on, current_flow_id,  timeout_on,  wait_started_on,  wait_expires_on,  wait_resume_on_expire,  call_id)
+               VALUES(:uuid, :session_type, :status, :responded, :output, :output_url, :contact_id, :org_id, NOW(),     :current_flow_id, :timeout_on, :wait_started_on, :wait_expires_on, :wait_resume_on_expire, :call_id)
 RETURNING id`
 
 const sqlInsertWaitingSessionNoOutput = `
 INSERT INTO
-	flows_flowsession( uuid,  session_type,  status,  responded,           output_url,  contact_id,  org_id, created_on, current_flow_id,  timeout_on,  wait_started_on,  wait_expires_on,  wait_resume_on_expire,  connection_id)
-               VALUES(:uuid, :session_type, :status, :responded,          :output_url, :contact_id, :org_id, NOW(),     :current_flow_id, :timeout_on, :wait_started_on, :wait_expires_on, :wait_resume_on_expire, :connection_id)
+	flows_flowsession( uuid,  session_type,  status,  responded,           output_url,  contact_id,  org_id, created_on, current_flow_id,  timeout_on,  wait_started_on,  wait_expires_on,  wait_resume_on_expire,  call_id)
+               VALUES(:uuid, :session_type, :status, :responded,          :output_url, :contact_id, :org_id, NOW(),     :current_flow_id, :timeout_on, :wait_started_on, :wait_expires_on, :wait_resume_on_expire, :call_id)
 RETURNING id`
 
 const sqlInsertEndedSession = `
 INSERT INTO
-	flows_flowsession( uuid,  session_type,  status,  responded,  output,  output_url,  contact_id,  org_id, created_on, ended_on, wait_resume_on_expire, connection_id)
-               VALUES(:uuid, :session_type, :status, :responded, :output, :output_url, :contact_id, :org_id, NOW(),      NOW(),    FALSE,                :connection_id)
+	flows_flowsession( uuid,  session_type,  status,  responded,  output,  output_url,  contact_id,  org_id, created_on, ended_on, wait_resume_on_expire, call_id)
+               VALUES(:uuid, :session_type, :status, :responded, :output, :output_url, :contact_id, :org_id, NOW(),      NOW(),    FALSE,                :call_id)
 RETURNING id`
 
 const sqlInsertEndedSessionNoOutput = `
 INSERT INTO
-	flows_flowsession( uuid,  session_type,  status,  responded,           output_url,  contact_id,  org_id, created_on, ended_on, wait_resume_on_expire, connection_id)
-               VALUES(:uuid, :session_type, :status, :responded,          :output_url, :contact_id, :org_id, NOW(),      NOW(),    FALSE,                :connection_id)
+	flows_flowsession( uuid,  session_type,  status,  responded,           output_url,  contact_id,  org_id, created_on, ended_on, wait_resume_on_expire, call_id)
+               VALUES(:uuid, :session_type, :status, :responded,          :output_url, :contact_id, :org_id, NOW(),      NOW(),    FALSE,                :call_id)
 RETURNING id`
 
 // InsertSessions writes the passed in session to our database, writes any runs that need to be created
@@ -600,7 +599,7 @@ func InsertSessions(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, oa *O
 	sessions := make([]*Session, 0, len(ss))
 	waitingSessionsI := make([]interface{}, 0, len(ss))
 	endedSessionsI := make([]interface{}, 0, len(ss))
-	completedConnectionIDs := make([]ConnectionID, 0, 1)
+	completedCallIDs := make([]CallID, 0, 1)
 
 	for i, s := range ss {
 		session, err := NewSession(ctx, tx, oa, s, sprints[i])
@@ -613,8 +612,8 @@ func InsertSessions(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, oa *O
 			waitingSessionsI = append(waitingSessionsI, &session.s)
 		} else {
 			endedSessionsI = append(endedSessionsI, &session.s)
-			if session.channelConnection != nil {
-				completedConnectionIDs = append(completedConnectionIDs, session.channelConnection.ID())
+			if session.call != nil {
+				completedCallIDs = append(completedCallIDs, session.call.ID())
 			}
 		}
 	}
@@ -659,7 +658,7 @@ func InsertSessions(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, oa *O
 	}
 
 	// mark any connections that are done as complete as well
-	err = UpdateChannelConnectionStatuses(ctx, tx, completedConnectionIDs, ConnectionStatusCompleted)
+	err = BulkUpdateCallStatuses(ctx, tx, completedCallIDs, CallStatusCompleted)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error updating channel connections to complete")
 	}
@@ -739,7 +738,7 @@ SELECT
 	wait_expires_on,
 	wait_resume_on_expire,
 	current_flow_id,
-	connection_id
+	call_id
 FROM 
 	flows_flowsession fs
 WHERE
@@ -807,7 +806,6 @@ func WriteSessionOutputsToStorage(ctx context.Context, rt *runtime.Runtime, sess
 			Path:        s.StoragePath(rt.Config),
 			Body:        []byte(s.Output()),
 			ContentType: "application/json",
-			ACL:         s3.ObjectCannedACLPrivate,
 		}
 	}
 
@@ -958,23 +956,19 @@ func InterruptSessionsForContactsTx(ctx context.Context, tx *sqlx.Tx, contactIDs
 	return errors.Wrapf(exitSessionBatch(ctx, tx, sessionIDs, SessionStatusInterrupted), "error exiting sessions")
 }
 
-const sqlWaitingSessionIDsForChannels = `
+const sqlWaitingSessionIDsForChannel = `
 SELECT fs.id
   FROM flows_flowsession fs
-  JOIN channels_channelconnection cc ON fs.connection_id = cc.id
- WHERE fs.status = 'W' AND cc.channel_id = ANY($1);`
+  JOIN ivr_call cc ON fs.call_id = cc.id
+ WHERE fs.status = 'W' AND cc.channel_id = $1;`
 
-// InterruptSessionsForChannels interrupts any waiting sessions with connections on the given channels
-func InterruptSessionsForChannels(ctx context.Context, db *sqlx.DB, channelIDs []ChannelID) error {
-	if len(channelIDs) == 0 {
-		return nil
-	}
+// InterruptSessionsForChannel interrupts any waiting sessions with calls on the given channel
+func InterruptSessionsForChannel(ctx context.Context, db *sqlx.DB, channelID ChannelID) error {
+	sessionIDs := make([]SessionID, 0, 10)
 
-	sessionIDs := make([]SessionID, 0, len(channelIDs))
-
-	err := db.SelectContext(ctx, &sessionIDs, sqlWaitingSessionIDsForChannels, pq.Array(channelIDs))
+	err := db.SelectContext(ctx, &sessionIDs, sqlWaitingSessionIDsForChannel, channelID)
 	if err != nil {
-		return errors.Wrapf(err, "error selecting waiting sessions for channels")
+		return errors.Wrapf(err, "error selecting waiting sessions for channel %d", channelID)
 	}
 
 	return errors.Wrapf(ExitSessions(ctx, db, sessionIDs, SessionStatusInterrupted), "error exiting sessions")

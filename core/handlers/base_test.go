@@ -188,7 +188,7 @@ func RunTestCases(t *testing.T, ctx context.Context, rt *runtime.Runtime, tcs []
 			for _, s := range session {
 				msg := msgsByContactID[s.ContactID()]
 				if msg != nil {
-					s.SetIncomingMsg(msg.ID(), "")
+					s.SetIncomingMsg(models.MsgID(msg.ID()), "")
 				}
 			}
 			return nil
@@ -196,9 +196,9 @@ func RunTestCases(t *testing.T, ctx context.Context, rt *runtime.Runtime, tcs []
 		options.TriggerBuilder = func(contact *flows.Contact) flows.Trigger {
 			msg := msgsByContactID[models.ContactID(contact.ID())]
 			if msg == nil {
-				return triggers.NewBuilder(oa.Env(), testFlow.Reference(), contact).Manual().Build()
+				return triggers.NewBuilder(oa.Env(), testFlow.Reference(false), contact).Manual().Build()
 			}
-			return triggers.NewBuilder(oa.Env(), testFlow.Reference(), contact).Msg(msg).Build()
+			return triggers.NewBuilder(oa.Env(), testFlow.Reference(false), contact).Msg(msg).Build()
 		}
 
 		for _, c := range []*testdata.Contact{testdata.Cathy, testdata.Bob, testdata.George, testdata.Alexandria} {

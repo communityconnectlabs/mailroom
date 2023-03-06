@@ -63,28 +63,27 @@ const (
 type MsgStatus string
 
 const (
-	MsgStatusInitializing = MsgStatus("I")
-	MsgStatusPending      = MsgStatus("P")
-	MsgStatusQueued       = MsgStatus("Q")
-	MsgStatusWired        = MsgStatus("W")
-	MsgStatusSent         = MsgStatus("S")
-	MsgStatusDelivered    = MsgStatus("D")
-	MsgStatusHandled      = MsgStatus("H")
-	MsgStatusErrored      = MsgStatus("E")
-	MsgStatusFailed       = MsgStatus("F")
-	MsgStatusResent       = MsgStatus("R")
+	MsgStatusPending   = MsgStatus("P") // incoming msg created but not yet handled, or outgoing message that failed to queue
+	MsgStatusHandled   = MsgStatus("H") // incoming msg handled
+	MsgStatusQueued    = MsgStatus("Q") // outgoing msg created and queued to courier
+	MsgStatusWired     = MsgStatus("W") // outgoing msg requested to be sent via channel
+	MsgStatusSent      = MsgStatus("S") // outgoing msg having received sent confirmation from channel
+	MsgStatusDelivered = MsgStatus("D") // outgoing msg having received delivery confirmation from channel
+	MsgStatusErrored   = MsgStatus("E") // outgoing msg which has errored and will be retried
+	MsgStatusFailed    = MsgStatus("F") // outgoing msg which has failed permanently
 )
 
 type MsgFailedReason null.String
 
 const (
-	NilMsgFailedReason     = MsgFailedReason("")
-	MsgFailedSuspended     = MsgFailedReason("S") // workspace suspended
-	MsgFailedContact       = MsgFailedReason("C") // contact blocked, stopped or archived
-	MsgFailedLooping       = MsgFailedReason("L")
-	MsgFailedErrorLimit    = MsgFailedReason("E")
-	MsgFailedTooOld        = MsgFailedReason("O")
-	MsgFailedNoDestination = MsgFailedReason("D")
+	NilMsgFailedReason      = MsgFailedReason("")
+	MsgFailedSuspended      = MsgFailedReason("S") // workspace suspended
+	MsgFailedContact        = MsgFailedReason("C") // contact blocked, stopped or archived
+	MsgFailedLooping        = MsgFailedReason("L")
+	MsgFailedErrorLimit     = MsgFailedReason("E")
+	MsgFailedTooOld         = MsgFailedReason("O")
+	MsgFailedNoDestination  = MsgFailedReason("D")
+	MsgFailedChannelRemoved = MsgFailedReason("R")
 )
 
 var unsendableToFailedReason = map[flows.UnsendableReason]MsgFailedReason{
@@ -140,7 +139,6 @@ type Msg struct {
 		URN                  urns.URN           `db:"urn_urn"         json:"urn"`
 		URNAuth              null.String        `db:"urn_auth"        json:"urn_auth,omitempty"`
 		OrgID                OrgID              `db:"org_id"          json:"org_id"`
-		TopupID              TopupID            `db:"topup_id"        json:"-"`
 		FlowID               FlowID             `db:"flow_id"         json:"-"`
 
 		// extra data from handling added to the courier payload
@@ -183,13 +181,10 @@ func (m *Msg) ChannelUUID() assets.ChannelUUID  { return m.m.ChannelUUID }
 func (m *Msg) URN() urns.URN                    { return m.m.URN }
 func (m *Msg) URNAuth() null.String             { return m.m.URNAuth }
 func (m *Msg) OrgID() OrgID                     { return m.m.OrgID }
-func (m *Msg) TopupID() TopupID                 { return m.m.TopupID }
 func (m *Msg) FlowID() FlowID                   { return m.m.FlowID }
 func (m *Msg) ContactID() ContactID             { return m.m.ContactID }
 func (m *Msg) ContactURNID() *URNID             { return m.m.ContactURNID }
 func (m *Msg) IsResend() bool                   { return m.m.IsResend }
-
-func (m *Msg) SetTopup(topupID TopupID) { m.m.TopupID = topupID }
 
 func (m *Msg) SetChannel(channel *Channel) {
 	m.channel = channel
@@ -236,7 +231,7 @@ func (m *Msg) MarshalJSON() ([]byte, error) {
 }
 
 // NewIncomingIVR creates a new incoming IVR message for the passed in text and attachment
-func NewIncomingIVR(cfg *runtime.Config, orgID OrgID, conn *ChannelConnection, in *flows.MsgIn, createdOn time.Time) *Msg {
+func NewIncomingIVR(cfg *runtime.Config, orgID OrgID, call *Call, in *flows.MsgIn, createdOn time.Time) *Msg {
 	msg := &Msg{}
 	m := &msg.m
 
@@ -247,14 +242,13 @@ func NewIncomingIVR(cfg *runtime.Config, orgID OrgID, conn *ChannelConnection, i
 	m.Status = MsgStatusHandled
 	m.Visibility = VisibilityVisible
 	m.MsgType = MsgTypeIVR
-	m.ContactID = conn.ContactID()
+	m.ContactID = call.ContactID()
 
-	urnID := conn.ContactURNID()
+	urnID := call.ContactURNID()
 	m.ContactURNID = &urnID
-	m.ChannelID = conn.ChannelID()
+	m.ChannelID = call.ChannelID()
 
 	m.OrgID = orgID
-	m.TopupID = NilTopupID
 	m.CreatedOn = createdOn
 
 	// add any attachments
@@ -266,7 +260,7 @@ func NewIncomingIVR(cfg *runtime.Config, orgID OrgID, conn *ChannelConnection, i
 }
 
 // NewOutgoingIVR creates a new IVR message for the passed in text with the optional attachment
-func NewOutgoingIVR(cfg *runtime.Config, orgID OrgID, conn *ChannelConnection, out *flows.MsgOut, createdOn time.Time) *Msg {
+func NewOutgoingIVR(cfg *runtime.Config, orgID OrgID, call *Call, out *flows.MsgOut, createdOn time.Time) *Msg {
 	msg := &Msg{}
 	m := &msg.m
 
@@ -278,16 +272,15 @@ func NewOutgoingIVR(cfg *runtime.Config, orgID OrgID, conn *ChannelConnection, o
 	m.Status = MsgStatusWired
 	m.Visibility = VisibilityVisible
 	m.MsgType = MsgTypeIVR
-	m.ContactID = conn.ContactID()
+	m.ContactID = call.ContactID()
 
-	urnID := conn.ContactURNID()
+	urnID := call.ContactURNID()
 	m.ContactURNID = &urnID
-	m.ChannelID = conn.ChannelID()
+	m.ChannelID = call.ChannelID()
 
 	m.URN = out.URN()
 
 	m.OrgID = orgID
-	m.TopupID = NilTopupID
 	m.CreatedOn = createdOn
 	m.SentOn = &createdOn
 
@@ -353,7 +346,6 @@ func newOutgoingMsg(rt *runtime.Runtime, org *Org, channel *Channel, contact *fl
 	m.OrgID = org.ID()
 	m.ContactID = ContactID(contact.ID())
 	m.BroadcastID = broadcastID
-	m.TopupID = NilTopupID
 	m.Text = out.Text()
 	m.HighPriority = false
 	m.Direction = DirectionOut
@@ -362,6 +354,7 @@ func newOutgoingMsg(rt *runtime.Runtime, org *Org, channel *Channel, contact *fl
 	m.MsgType = MsgTypeFlow
 	m.MsgCount = 1
 	m.CreatedOn = createdOn
+	m.Metadata = null.NewMap(buildMsgMetadata(out))
 
 	msg.SetChannel(channel)
 	msg.SetURN(out.URN())
@@ -411,27 +404,26 @@ func newOutgoingMsg(rt *runtime.Runtime, org *Org, channel *Channel, contact *fl
 		}
 	}
 
-	// populate metadata if we have any
-	if len(out.QuickReplies()) > 0 || out.Templating() != nil || out.Topic() != flows.NilMsgTopic {
-		metadata := make(map[string]interface{})
-		if len(out.QuickReplies()) > 0 {
-			metadata["quick_replies"] = out.QuickReplies()
-		}
-		if out.Templating() != nil {
-			metadata["templating"] = out.Templating()
-		}
-		if out.Topic() != flows.NilMsgTopic {
-			metadata["topic"] = string(out.Topic())
-		}
-		m.Metadata = null.NewMap(metadata)
-	}
-
 	// if we're sending to a phone, message may have to be sent in multiple parts
 	if m.URN.Scheme() == urns.TelScheme {
 		m.MsgCount = gsm7.Segments(m.Text) + len(m.Attachments)
 	}
 
 	return msg, nil
+}
+
+func buildMsgMetadata(m *flows.MsgOut) map[string]interface{} {
+	metadata := make(map[string]interface{})
+	if len(m.QuickReplies()) > 0 {
+		metadata["quick_replies"] = m.QuickReplies()
+	}
+	if m.Templating() != nil {
+		metadata["templating"] = m.Templating()
+	}
+	if m.Topic() != flows.NilMsgTopic {
+		metadata["topic"] = string(m.Topic())
+	}
+	return metadata
 }
 
 // NewIncomingMsg creates a new incoming message for the passed in text and attachment
@@ -450,7 +442,6 @@ func NewIncomingMsg(cfg *runtime.Config, orgID OrgID, channel *Channel, contactI
 	m.MsgType = MsgTypeFlow
 	m.ContactID = contactID
 	m.OrgID = orgID
-	m.TopupID = NilTopupID
 	m.CreatedOn = createdOn
 
 	// add any attachments
@@ -482,8 +473,7 @@ SELECT
 	channel_id,
 	contact_id,
 	contact_urn_id,
-	org_id,
-	topup_id
+	org_id
 FROM
 	msgs_msg
 WHERE
@@ -520,21 +510,21 @@ SELECT
 	m.contact_id,
 	m.contact_urn_id,
 	m.org_id,
-	m.topup_id,
 	u.identity AS "urn_urn",
 	u.auth AS "urn_auth"
 FROM
 	msgs_msg m
 INNER JOIN 
 	contacts_contacturn u ON u.id = m.contact_urn_id
+INNER JOIN 
+	channels_channel c ON c.id = m.channel_id
 WHERE
-	m.direction = 'O' AND
-	m.status = 'E' AND
-	m.next_attempt <= NOW()
+	m.direction = 'O' AND m.status IN ('P', 'E') AND m.next_attempt <= NOW() AND c.is_active = TRUE
 ORDER BY
     m.next_attempt ASC, m.created_on ASC
 LIMIT 5000`
 
+// GetMessagesForRetry gets errored outgoing messages scheduled for retry, with an active channel
 func GetMessagesForRetry(ctx context.Context, db Queryer) ([]*Msg, error) {
 	return loadMessages(ctx, db, loadMessagesForRetrySQL)
 }
@@ -621,10 +611,10 @@ const insertMsgSQL = `
 INSERT INTO
 msgs_msg(uuid, text, high_priority, created_on, modified_on, queued_on, sent_on, direction, status, attachments, metadata,
 		 visibility, msg_type, msg_count, error_count, next_attempt, failed_reason, channel_id,
-		 contact_id, contact_urn_id, org_id, topup_id, flow_id, broadcast_id)
+		 contact_id, contact_urn_id, org_id, flow_id, broadcast_id)
   VALUES(:uuid, :text, :high_priority, :created_on, now(), now(), :sent_on, :direction, :status, :attachments, :metadata,
 		 :visibility, :msg_type, :msg_count, :error_count, :next_attempt, :failed_reason, :channel_id,
-		 :contact_id, :contact_urn_id, :org_id, :topup_id, :flow_id, :broadcast_id)
+		 :contact_id, :contact_urn_id, :org_id, :flow_id, :broadcast_id)
 RETURNING 
 	id as id, 
 	now() as modified_on,
@@ -632,7 +622,7 @@ RETURNING
 `
 
 // UpdateMessage updates a message after handling
-func UpdateMessage(ctx context.Context, tx Queryer, msgID flows.MsgID, status MsgStatus, visibility MsgVisibility, msgType MsgType, flow FlowID, topup TopupID) error {
+func UpdateMessage(ctx context.Context, tx Queryer, msgID MsgID, status MsgStatus, visibility MsgVisibility, msgType MsgType, flow FlowID, attachments []utils.Attachment, logUUIDs []ChannelLogUUID) error {
 	_, err := tx.ExecContext(ctx,
 		`UPDATE 
 			msgs_msg 
@@ -641,10 +631,11 @@ func UpdateMessage(ctx context.Context, tx Queryer, msgID flows.MsgID, status Ms
 			visibility = $3,
 			msg_type = $4,
 			flow_id = $5,
-			topup_id = $6
+			attachments = $6,
+			log_uuids = array_cat(log_uuids, $7)
 		WHERE
 			id = $1`,
-		msgID, status, visibility, msgType, flow, topup)
+		msgID, status, visibility, msgType, flow, pq.Array(attachments), pq.Array(logUUIDs))
 
 	if err != nil {
 		return errors.Wrapf(err, "error updating msg: %d", msgID)
@@ -653,39 +644,35 @@ func UpdateMessage(ctx context.Context, tx Queryer, msgID flows.MsgID, status Ms
 	return nil
 }
 
-// MarkMessagesPending marks the passed in messages as pending(P)
-func MarkMessagesPending(ctx context.Context, db Queryer, msgs []*Msg) error {
-	return updateMessageStatus(ctx, db, msgs, MsgStatusPending)
+// MarkMessagesForRequeuing marks the passed in messages as pending(P) with a next attempt value
+// so that the retry messages task will pick them up.
+func MarkMessagesForRequeuing(ctx context.Context, db Queryer, msgs []*Msg) error {
+	nextAttempt := time.Now().Add(10 * time.Minute)
+	return updateMessageStatus(ctx, db, msgs, MsgStatusPending, &nextAttempt)
 }
 
 // MarkMessagesQueued marks the passed in messages as queued(Q)
 func MarkMessagesQueued(ctx context.Context, db Queryer, msgs []*Msg) error {
-	return updateMessageStatus(ctx, db, msgs, MsgStatusQueued)
+	return updateMessageStatus(ctx, db, msgs, MsgStatusQueued, nil)
 }
 
-func updateMessageStatus(ctx context.Context, db Queryer, msgs []*Msg, status MsgStatus) error {
+const sqlUpdateMsgStatus = `
+UPDATE msgs_msg
+   SET status = m.status, next_attempt = m.next_attempt::timestamp with time zone
+  FROM (VALUES(:id, :status, :next_attempt)) AS m(id, status, next_attempt)
+ WHERE msgs_msg.id = m.id::bigint`
+
+func updateMessageStatus(ctx context.Context, db Queryer, msgs []*Msg, status MsgStatus, nextAttempt *time.Time) error {
 	is := make([]interface{}, len(msgs))
 	for i, msg := range msgs {
 		m := &msg.m
 		m.Status = status
+		m.NextAttempt = nextAttempt
 		is[i] = m
 	}
 
-	return BulkQuery(ctx, "updating message status", db, updateMsgStatusSQL, is)
+	return BulkQuery(ctx, "updating message status", db, sqlUpdateMsgStatus, is)
 }
-
-const updateMsgStatusSQL = `
-UPDATE 
-	msgs_msg
-SET
-	status = m.status
-FROM (
-	VALUES(:id, :status)
-) AS
-	m(id, status)
-WHERE
-	msgs_msg.id = m.id::bigint
-`
 
 // BroadcastTranslation is the translation for the passed in language
 type BroadcastTranslation struct {
@@ -846,8 +833,8 @@ type broadcastGroup struct {
 
 const insertBroadcastSQL = `
 INSERT INTO
-	msgs_broadcast( org_id,  parent_id,  ticket_id, created_on, modified_on, status,  text,  base_language, send_all)
-			VALUES(:org_id, :parent_id, :ticket_id, NOW()     , NOW(),       'Q',    :text, :base_language, FALSE)
+	msgs_broadcast( org_id,  parent_id,  ticket_id, created_on, modified_on, status,  text,  base_language, send_all, is_active)
+			VALUES(:org_id, :parent_id, :ticket_id, NOW()     , NOW(),       'Q',    :text, :base_language, FALSE,    TRUE)
 RETURNING
 	id
 `
@@ -1114,19 +1101,6 @@ func (b *BroadcastBatch) CreateMessages(ctx context.Context, rt *runtime.Runtime
 		}
 	}
 
-	// allocate a topup for these message if org uses topups
-	topup, err := AllocateTopups(ctx, rt.DB, rt.RP, oa.Org(), len(msgs))
-	if err != nil {
-		return nil, errors.Wrapf(err, "error allocating topup for broadcast messages")
-	}
-
-	// if we have an active topup, assign it to our messages
-	if topup != NilTopupID {
-		for _, m := range msgs {
-			m.SetTopup(topup)
-		}
-	}
-
 	// insert them in a single request
 	err = InsertMessages(ctx, rt.DB, msgs)
 	if err != nil {
@@ -1177,14 +1151,13 @@ func (b *BroadcastBatch) updateTicket(ctx context.Context, db Queryer, oa *OrgAs
 const sqlUpdateMsgForResending = `
 UPDATE msgs_msg m
    SET channel_id = r.channel_id::int,
-       topup_id = r.topup_id::int,
        status = 'P',
        error_count = 0,
        failed_reason = NULL,
        queued_on = r.queued_on::timestamp with time zone,
        sent_on = NULL,
        modified_on = NOW()
-  FROM (VALUES(:id, :channel_id, :topup_id, :queued_on)) AS r(id, channel_id, topup_id, queued_on)
+  FROM (VALUES(:id, :channel_id, :queued_on)) AS r(id, channel_id, queued_on)
  WHERE m.id = r.id::bigint`
 
 const sqlUpdateMsgResendFailed = `
@@ -1204,7 +1177,6 @@ func ResendMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa *OrgAsse
 
 	for _, msg := range msgs {
 		var ch *flows.Channel
-		var err error
 		urnID := msg.ContactURNID()
 
 		if urnID != nil {
@@ -1236,11 +1208,6 @@ func ResendMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa *OrgAsse
 			msg.m.FailedReason = ""
 			msg.m.IsResend = true // mark message as being a resend so it will be queued to courier as such
 
-			// allocate a new topup for this message if org uses topups
-			msg.m.TopupID, err = AllocateTopups(ctx, db, rp, oa.Org(), 1)
-			if err != nil {
-				return nil, errors.Wrapf(err, "error allocating topup for message resending")
-			}
 			resends = append(resends, msg.m)
 			resent = append(resent, msg)
 		} else {
@@ -1271,6 +1238,29 @@ func ResendMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa *OrgAsse
 	}
 
 	return resent, nil
+}
+
+const sqlFailChannelMessages = `
+WITH rows AS (
+	SELECT id FROM msgs_msg
+	WHERE org_id = $1 AND direction = 'O' AND channel_id = $2 AND status IN ('P', 'Q', 'E') 
+	LIMIT 1000
+)
+UPDATE msgs_msg SET status = 'F', failed_reason = $3, modified_on = NOW() WHERE id IN (SELECT id FROM rows)`
+
+func FailChannelMessages(ctx context.Context, db Queryer, orgID OrgID, channelID ChannelID, failedReason MsgFailedReason) error {
+	for {
+		// and update the messages as FAILED
+		res, err := db.ExecContext(ctx, sqlFailChannelMessages, orgID, channelID, failedReason)
+		if err != nil {
+			return err
+		}
+		rows, _ := res.RowsAffected()
+		if rows == 0 {
+			break
+		}
+	}
+	return nil
 }
 
 // MarkBroadcastSent marks the passed in broadcast as sent

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/nyaruka/gocommon/analytics"
 	"github.com/nyaruka/gocommon/storage"
 	"github.com/nyaruka/mailroom/core/queue"
@@ -128,22 +129,22 @@ func (mr *Mailroom) Start() error {
 		if err != nil {
 			return err
 		}
-		mr.rt.MediaStorage = storage.NewS3(s3Client, mr.rt.Config.S3MediaBucket, c.S3Region, 32)
-		mr.rt.SessionStorage = storage.NewS3(s3Client, mr.rt.Config.S3SessionBucket, c.S3Region, 32)
+		mr.rt.AttachmentStorage = storage.NewS3(s3Client, mr.rt.Config.S3AttachmentsBucket, c.S3Region, s3.BucketCannedACLPublicRead, 32)
+		mr.rt.SessionStorage = storage.NewS3(s3Client, mr.rt.Config.S3SessionBucket, c.S3Region, s3.ObjectCannedACLPrivate, 32)
 	} else {
-		mr.rt.MediaStorage = storage.NewFS("_storage")
-		mr.rt.SessionStorage = storage.NewFS("_storage")
+		mr.rt.AttachmentStorage = storage.NewFS("_storage", 0766)
+		mr.rt.SessionStorage = storage.NewFS("_storage", 0766)
 	}
 
-	// test our media storage
+	// test our attachment storage
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	err = mr.rt.MediaStorage.Test(ctx)
+	err = mr.rt.AttachmentStorage.Test(ctx)
 	cancel()
 
 	if err != nil {
-		log.WithError(err).Error(mr.rt.MediaStorage.Name() + " media storage not available")
+		log.WithError(err).Error(mr.rt.AttachmentStorage.Name() + " attachment storage not available")
 	} else {
-		log.Info(mr.rt.MediaStorage.Name() + " media storage ok")
+		log.Info(mr.rt.AttachmentStorage.Name() + " attachment storage ok")
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*10)
@@ -157,7 +158,7 @@ func (mr *Mailroom) Start() error {
 	}
 
 	// initialize our elastic client
-	mr.rt.ES, err = newElasticClient(c.Elastic)
+	mr.rt.ES, err = newElasticClient(c.Elastic, c.ElasticUsername, c.ElasticPassword)
 	if err != nil {
 		log.WithError(err).Error("elastic search not available")
 	} else {
@@ -274,7 +275,7 @@ func openAndCheckRedisPool(redisUrl string) (*redis.Pool, error) {
 	return rp, err
 }
 
-func newElasticClient(url string) (*elastic.Client, error) {
+func newElasticClient(url string, username string, password string) (*elastic.Client, error) {
 	// enable retrying
 	backoff := elastic.NewSimpleBackoff(500, 1000, 2000)
 	backoff.Jitter(true)
@@ -284,5 +285,6 @@ func newElasticClient(url string) (*elastic.Client, error) {
 		elastic.SetURL(url),
 		elastic.SetSniff(false),
 		elastic.SetRetrier(retrier),
+		elastic.SetBasicAuth(username, password),
 	)
 }
