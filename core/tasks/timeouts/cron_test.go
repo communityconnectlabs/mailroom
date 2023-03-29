@@ -11,7 +11,6 @@ import (
 	"github.com/nyaruka/mailroom/core/tasks/handler"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
-	"github.com/nyaruka/mailroom/utils/marker"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -21,21 +20,18 @@ func TestTimeouts(t *testing.T) {
 	rc := rp.Get()
 	defer rc.Close()
 
-	defer testsuite.Reset(testsuite.ResetAll)
-
-	err := marker.ClearTasks(rc, timeoutLock)
-	assert.NoError(t, err)
+	defer testsuite.Reset(testsuite.ResetData | testsuite.ResetRedis)
 
 	// need to create a session that has an expired timeout
 	s1TimeoutOn := time.Now()
-	testdata.InsertFlowSession(db, testdata.Org1, testdata.Cathy, models.SessionStatusWaiting, &s1TimeoutOn)
+	testdata.InsertWaitingSession(db, testdata.Org1, testdata.Cathy, models.FlowTypeMessaging, testdata.Favorites, models.NilConnectionID, time.Now(), time.Now(), false, &s1TimeoutOn)
 	s2TimeoutOn := time.Now().Add(time.Hour * 24)
-	testdata.InsertFlowSession(db, testdata.Org1, testdata.George, models.SessionStatusWaiting, &s2TimeoutOn)
+	testdata.InsertWaitingSession(db, testdata.Org1, testdata.George, models.FlowTypeMessaging, testdata.Favorites, models.NilConnectionID, time.Now(), time.Now(), false, &s2TimeoutOn)
 
 	time.Sleep(10 * time.Millisecond)
 
 	// schedule our timeouts
-	err = timeoutSessions(ctx, rt, timeoutLock, "foo")
+	err := timeoutSessions(ctx, rt)
 	assert.NoError(t, err)
 
 	// should have created one task

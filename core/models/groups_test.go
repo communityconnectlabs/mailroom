@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/nyaruka/gocommon/dbutil/assertdb"
 	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/mailroom/core/models"
@@ -59,12 +60,7 @@ func TestDynamicGroups(t *testing.T) {
 	defer testsuite.Reset(testsuite.ResetAll)
 
 	// insert an event on our campaign
-	var eventID models.CampaignEventID
-	db.Get(&eventID,
-		`INSERT INTO campaigns_campaignevent(is_active, created_on, modified_on, uuid, "offset", unit, event_type, delivery_hour, 
-											 campaign_id, created_by_id, modified_by_id, flow_id, relative_to_id, start_mode)
-									   VALUES(TRUE, NOW(), NOW(), $1, 1000, 'W', 'F', -1, $2, 1, 1, $3, $4, 'I') RETURNING id`,
-		uuids.New(), testdata.RemindersCampaign.ID, testdata.Favorites.ID, testdata.JoinedField.ID)
+	newEvent := testdata.InsertCampaignFlowEvent(db, testdata.RemindersCampaign, testdata.Favorites, testdata.JoinedField, 1000, "W")
 
 	// clear Cathy's value
 	db.MustExec(
@@ -162,7 +158,13 @@ func TestDynamicGroups(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, tc.ContactIDs, contactIDs)
 
-		testsuite.AssertQuery(t, db, `SELECT count(*) from contacts_contactgroup WHERE id = $1 AND status = 'R'`, testdata.DoctorsGroup.ID).
+		assertdb.Query(t, db, `SELECT count(*) from contacts_contactgroup WHERE id = $1 AND status = 'R'`, testdata.DoctorsGroup.ID).
 			Returns(1, "wrong number of contacts in group for query: %s", tc.Query)
+
+		assertdb.Query(t, db, `SELECT count(*) from campaigns_eventfire WHERE event_id = $1`, newEvent.ID).
+			Returns(len(tc.EventContactIDs), "wrong number of contacts with events for query: %s", tc.Query)
+
+		assertdb.Query(t, db, `SELECT count(*) from campaigns_eventfire WHERE event_id = $1 AND contact_id = ANY($2)`, newEvent.ID, pq.Array(tc.EventContactIDs)).
+			Returns(len(tc.EventContactIDs), "wrong contacts with events for query: %s", tc.Query)
 	}
 }

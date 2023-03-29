@@ -23,6 +23,7 @@ _storage/
 *.text
 
 
+deploy
 fabric
 fabfile.py
 fabfile.pyc

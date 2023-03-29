@@ -3,7 +3,6 @@ package mailroom
 import (
 	"context"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -165,8 +164,7 @@ func (mr *Mailroom) Start() error {
 
 	// if we have a librato token, configure it
 	if c.LibratoToken != "" {
-		host, _ := os.Hostname()
-		librato.Configure(c.LibratoUsername, c.LibratoToken, host, time.Second, mr.wg)
+		librato.Configure(c.LibratoUsername, c.LibratoToken, c.InstanceName, time.Second, mr.wg)
 		librato.Start()
 	}
 
@@ -196,7 +194,12 @@ func (mr *Mailroom) Stop() error {
 	mr.webserver.Stop()
 
 	mr.wg.Wait()
-	mr.rt.ES.Stop()
+
+	// stop ES client if we have one
+	if mr.rt.ES != nil {
+		mr.rt.ES.Stop()
+	}
+
 	logrus.Info("mailroom stopped")
 	return nil
 }

@@ -374,7 +374,7 @@ func (b *ContactImportBatch) markComplete(ctx context.Context, db Queryer, impor
 			numUpdated++
 		}
 		for _, e := range imp.errors {
-			importErrors = append(importErrors, importError{Record: imp.record, Message: e})
+			importErrors = append(importErrors, importError{Record: imp.record, Row: imp.spec.ImportRow, Message: e})
 		}
 		if imp.contact != nil && (imp.contact.Status() == ContactStatusBlocked) {
 			blockedUUIDs = append(blockedUUIDs, imp.contact.UUID())
@@ -477,11 +477,14 @@ type ContactSpec struct {
 	URNs     []urns.URN         `json:"urns"`
 	Fields   map[string]string  `json:"fields"`
 	Groups   []assets.GroupUUID `json:"groups"`
+
+	ImportRow int `json:"_import_row"`
 }
 
 // an error message associated with a particular record
 type importError struct {
 	Record  int    `json:"record"`
+	Row     int    `json:"row"`
 	Message string `json:"message"`
 }
 

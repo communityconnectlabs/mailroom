@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
+	"github.com/nyaruka/gocommon/dbutil"
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/gocommon/jsonx"
 	"github.com/nyaruka/goflow/envs"
@@ -23,8 +25,6 @@ import (
 	"github.com/nyaruka/mailroom/core/goflow"
 	"github.com/nyaruka/mailroom/runtime"
 	"github.com/nyaruka/null"
-
-	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/nyaruka/mailroom/utils/dbutil"
@@ -57,9 +57,6 @@ func airtimeServiceFactory(c *runtime.Config) engine.AirtimeServiceFactory {
 // OrgID is our type for orgs ids
 type OrgID int
 
-// SessionStorageMode is our type for how we persist our sessions
-type SessionStorageMode string
-
 const (
 	// NilOrgID is the id 0 considered as nil org id
 	NilOrgID = OrgID(0)
@@ -67,11 +64,6 @@ const (
 	configSMTPServer  = "smtp_server"
 	configDTOneKey    = "dtone_key"
 	configDTOneSecret = "dtone_secret"
-
-	configSessionStorageMode = "session_storage_mode"
-
-	DBSessions = SessionStorageMode("db")
-	S3Sessions = SessionStorageMode("s3")
 )
 
 // Org is mailroom's type for RapidPro orgs. It also implements the envs.Environment interface for GoFlow
@@ -93,10 +85,6 @@ func (o *Org) Suspended() bool { return o.o.Suspended }
 
 // UsesTopups returns whether the org uses topups
 func (o *Org) UsesTopups() bool { return o.o.UsesTopups }
-
-func (o *Org) SessionStorageMode() SessionStorageMode {
-	return SessionStorageMode(o.ConfigValue(configSessionStorageMode, string(DBSessions)))
-}
 
 // DateFormat returns the date format for this org
 func (o *Org) DateFormat() envs.DateFormat { return o.env.DateFormat() }
@@ -254,7 +242,7 @@ func LoadOrg(ctx context.Context, cfg *runtime.Config, db sqlx.Queryer, orgID Or
 		return nil, errors.Errorf("no org with id: %d", orgID)
 	}
 
-	err = dbutil.ReadJSONRow(rows, org)
+	err = dbutil.ScanJSON(rows, org)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error unmarshalling org")
 	}

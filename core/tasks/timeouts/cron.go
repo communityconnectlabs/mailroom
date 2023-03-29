@@ -11,7 +11,7 @@ import (
 	"github.com/nyaruka/mailroom/core/tasks/handler"
 	"github.com/nyaruka/mailroom/runtime"
 	"github.com/nyaruka/mailroom/utils/cron"
-	"github.com/nyaruka/mailroom/utils/marker"
+	"github.com/nyaruka/redisx"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -19,8 +19,9 @@ import (
 
 const (
 	timeoutLock = "sessions_timeouts"
-	markerGroup = "session_timeouts"
 )
+
+var marker = redisx.NewIntervalSet("session_timeouts", time.Hour*24, 2)
 
 func init() {
 	mailroom.AddInitFunction(StartTimeoutCron)
@@ -28,11 +29,11 @@ func init() {
 
 // StartTimeoutCron starts our cron job of continuing timed out sessions every minute
 func StartTimeoutCron(rt *runtime.Runtime, wg *sync.WaitGroup, quit chan bool) error {
-	cron.StartCron(quit, rt.RP, timeoutLock, time.Second*60,
-		func(lockName string, lockValue string) error {
+	cron.Start(quit, rt, timeoutLock, time.Second*60, false,
+		func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 			defer cancel()
-			return timeoutSessions(ctx, rt, lockName, lockValue)
+			return timeoutSessions(ctx, rt)
 		},
 	)
 	return nil
@@ -40,8 +41,8 @@ func StartTimeoutCron(rt *runtime.Runtime, wg *sync.WaitGroup, quit chan bool) e
 
 // timeoutRuns looks for any runs that have timed out and schedules for them to continue
 // TODO: extend lock
-func timeoutSessions(ctx context.Context, rt *runtime.Runtime, lockName string, lockValue string) error {
-	log := logrus.WithField("comp", "timeout").WithField("lock", lockValue)
+func timeoutSessions(ctx context.Context, rt *runtime.Runtime) error {
+	log := logrus.WithField("comp", "timeout")
 	start := time.Now()
 
 	// find all sessions that need to be expired (we exclude IVR runs)
@@ -54,8 +55,9 @@ func timeoutSessions(ctx context.Context, rt *runtime.Runtime, lockName string, 
 	rc := rt.RP.Get()
 	defer rc.Close()
 
+	numQueued, numDupes := 0, 0
+
 	// add a timeout task for each run
-	count := 0
 	timeout := &Timeout{}
 	for rows.Next() {
 		err := rows.StructScan(timeout)
@@ -65,13 +67,14 @@ func timeoutSessions(ctx context.Context, rt *runtime.Runtime, lockName string, 
 
 		// check whether we've already queued this
 		taskID := fmt.Sprintf("%d:%s", timeout.SessionID, timeout.TimeoutOn.Format(time.RFC3339))
-		queued, err := marker.HasTask(rc, markerGroup, taskID)
+		queued, err := marker.Contains(rc, taskID)
 		if err != nil {
 			return errors.Wrapf(err, "error checking whether task is queued")
 		}
 
 		// already queued? move on
 		if queued {
+			numDupes++
 			continue
 		}
 
@@ -83,15 +86,15 @@ func timeoutSessions(ctx context.Context, rt *runtime.Runtime, lockName string, 
 		}
 
 		// and mark it as queued
-		err = marker.AddTask(rc, markerGroup, taskID)
+		err = marker.Add(rc, taskID)
 		if err != nil {
 			return errors.Wrapf(err, "error marking timeout task as queued")
 		}
 
-		count++
+		numQueued++
 	}
 
-	log.WithField("elapsed", time.Since(start)).WithField("count", count).Info("timeouts queued")
+	log.WithField("dupes", numDupes).WithField("queued", numQueued).WithField("elapsed", time.Since(start)).Info("session timeouts queued")
 	return nil
 }
 

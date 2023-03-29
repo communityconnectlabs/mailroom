@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/nyaruka/gocommon/dates"
+	"github.com/nyaruka/gocommon/dbutil/assertdb"
 	"github.com/nyaruka/gocommon/httpx"
 	"github.com/nyaruka/gocommon/jsonx"
 	"github.com/nyaruka/gocommon/uuids"
@@ -62,14 +63,14 @@ func RunWebTests(t *testing.T, ctx context.Context, rt *runtime.Runtime, truthFi
 		actualResponse []byte
 	}
 	tcs := make([]TestCase, 0, 20)
-	tcJSON, err := os.ReadFile(truthFile)
-	require.NoError(t, err)
+	tcJSON := testsuite.ReadFile(truthFile)
 
 	for key, value := range substitutions {
 		tcJSON = bytes.ReplaceAll(tcJSON, []byte("$"+key+"$"), []byte(value))
 	}
 
 	jsonx.MustUnmarshal(tcJSON, &tcs)
+	var err error
 
 	for i, tc := range tcs {
 		dates.SetNowSource(dates.NewSequentialNowSource(time.Date(2018, 7, 6, 12, 30, 0, 123456789, time.UTC)))
@@ -130,8 +131,7 @@ func RunWebTests(t *testing.T, ctx context.Context, rt *runtime.Runtime, truthFi
 			expectedIsJSON := false
 
 			if tc.ResponseFile != "" {
-				expectedResponse, err = os.ReadFile(tc.ResponseFile)
-				require.NoError(t, err)
+				expectedResponse = testsuite.ReadFile(tc.ResponseFile)
 
 				expectedIsJSON = strings.HasSuffix(tc.ResponseFile, ".json")
 			} else {
@@ -146,7 +146,7 @@ func RunWebTests(t *testing.T, ctx context.Context, rt *runtime.Runtime, truthFi
 			}
 
 			for _, dba := range tc.DBAssertions {
-				testsuite.AssertQuery(t, rt.DB, dba.Query).Returns(dba.Count, "%s: '%s' returned wrong count", tc.Label, dba.Query)
+				assertdb.Query(t, rt.DB, dba.Query).Returns(dba.Count, "%s: '%s' returned wrong count", tc.Label, dba.Query)
 			}
 
 		} else {

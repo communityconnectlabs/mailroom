@@ -1,3 +1,270 @@
+v7.2.6
+----------
+ * Batch calls to delete event fires
+
+v7.2.5
+----------
+ * Fix resend reponses when not all messages could be resent
+
+v7.2.4
+----------
+ * Improve logging on session resume
+ * Fix example session storage path
+ * Use redis 5.x for CI
+ * Improve configuration section of README
+
+v7.2.3
+----------
+ * Rework resending to fail messages with no destination
+
+v7.2.2
+----------
+ * Tweak log messages for expirations and timeouts
+ * Don't try to resume expired session if contact isn't active
+
+v7.2.1
+----------
+ * Improve logging of expirations task and fix logging on ticket opening
+ * CI with latest go 1.17.x
+
+v7.2.0
+----------
+ * Add missing config options to README
+
+v7.1.45
+----------
+ * Update to latest goflow
+
+v7.1.44
+----------
+ * Remove references to flows_flowrun.exit_type and is_active which are no longer used
+
+v7.1.43
+----------
+ * Flow starts from start_session actions in flows should only match single contacts
+ * Fix panic when resuming IVR flow
+
+v7.1.42
+----------
+ * When fetching flows by name, prefer latest saved
+
+v7.1.41
+----------
+ * Add support for querying by flow
+
+v7.1.40
+----------
+ * Implement setting contact.current_flow_id as pseudo event and hook
+
+v7.1.39
+----------
+ * Change StartOption fields to match excludes that we use in RP UI
+ * Skipping or interrupting waiting sessions should happen across all flow types
+
+v7.1.38
+----------
+ * Update to latest goflow that fixes group removal on contact stop and resuming with wrong type of resume
+ * Resolve endpoint should return error if given invalid URN
+ * If handling timed event finds different session, don't fail event session as it should have already been interrupted
+
+v7.1.37
+----------
+ * Update to goflow 0.149.1
+ * Add _import_row to contact spec so that we can reliably generate import errors with row numbers
+
+v7.1.36
+----------
+ * Remove expires_on, parent_uuid and connection_id fields from FlowRun
+
+v7.1.35
+----------
+ * Use sessions only for voice session expiration
+ * FlowSession.wait_resume_on_expire now non-null and don't set to true for IVR flows
+
+v7.1.34
+----------
+ * Update modified_on for contacts in batches of 100
+ * Rework expiring messaging sessions to be session based
+
+v7.1.33
+----------
+ * Set wait fields on sessions for dial waits as well
+ * Create completed sessions with wait_resume_on_expire = false
+ * Reduce exit sessions batch size to 100
+ * Clear contact.current_flow_id when exiting sessions
+
+v7.1.32
+----------
+ * Rework expirations to use ExitSessions
+
+v7.1.31
+----------
+ * Consolidate how we interrupt sessions
+ * Tweak mailroom shutdown to only stop ES client if there is one
+
+v7.1.30
+----------
+ * Remove deprecated fields on search endpoint
+ * Include flow reference when queuing messages
+ * Tweak coureier payload to not include unused fields
+
+v7.1.29
+----------
+ * Update to latest goflow (fixes allowing bad URNs in start_session actions and adds @trigger.campaign)
+ * Commit modified_on changes outside of transaction
+
+v7.1.28
+----------
+ * Include redis stats in analytics cron job
+ * Update wait_resume_on_expire on session writes
+
+v7.1.27
+----------
+ * Always read run status instead of is_active
+ * Rename Session.TimeoutOn to WaitTimeoutOn
+ * Add flow_id to msg and record for flow messages
+
+v7.1.26
+----------
+ * Add testdata functions for testing campaigns and events
+ * Use models.FireID consistently
+ * Replace broken redigo dep version and anything that was depending on it
+ * Simplify how we queue event fire tasks and improve logging
+
+v7.1.25
+----------
+ * Update to latest gocommon
+ * Stop writing events on flow runs
+
+v7.1.24
+----------
+ * Switch to dbutil package in gocommon
+ * Always exclude router arguments from PO file extraction
+
+v7.1.23
+----------
+ * Session.CurrentFlowID whould be cleared when session exits
+ * Start writing FlowSession.wait_expires_on
+ * Update to latest goflow which removes activated waits
+ * Clamp flow expiration values to valid ranges when loading flows
+
+v7.1.22
+----------
+ * Replace redisx package with new dependency
+ * Update test database to use big ids for flow run and session ids
+ * Move session storage mode to the runtime.Config instead of an org config value
+
+v7.1.21
+----------
+ * Update to latest gocommon to get instagram scheme
+
+v7.1.20
+----------
+ * Update to latest gocommon and goflow to get fix for random.IntN concurrency
+
+v7.1.19
+----------
+ * Update to latest goflow
+
+v7.1.18
+----------
+ * Fix not logging details of query errors
+ * CI with go 1.17.5
+
+v7.1.17
+----------
+ * Include segments in simulation responses
+
+v7.1.16
+----------
+ * Record recent contacts for all segments
+ * Allow cron jobs to declare that they can run on all instances at same time - needed for analytics job
+ * Write failed messages when missing channel or URNs
+ * Switch to redisx.Locker for cron job locking
+ * Update goflow
+ * Rename redisx structs and remove legacy support from IntervalSet
+
+v7.1.15
+----------
+ * Update goflow
+ * Use new key format with redisx.Marker but also use legacy key format for backwards compatibility
+
+v7.1.14
+----------
+ * Update to latest goflow
+ * Add failed_reason to msg and set when failing messages due to looping or org suspension
+ * Simplify cron functions by not passing lock name and value which aren't used
+ * Stop writing msgs_msg.connection_id
+ * Stop writing msgs_msg.response_to
+
+v7.1.13
+----------
+ * Replace trackers with series to determine unhealthy webhooks
+ * Correct use of KEYS vs ARGV in redisx scripts
+ * Rework how we create outgoing messages, and fix retries of high priority messages
+
+v7.1.12
+----------
+ * Move msg level loop detection from courier
+
+v7.1.11
+----------
+ * Add imports for missing task packages
+
+v7.1.10
+----------
+ * Add redisx.Cacher util
+
+v7.1.9
+----------
+ * Don't include response_to_id in courier payloads
+ * Add logging for ending webhook incidents
+
+v7.1.8
+----------
+ * Update sessions and runs in batches when exiting
+
+v7.1.7
+----------
+ * Fix handling of add label actions after msg resumes in IVR flows
+ * Add cron job to end webhook incidents when nodes are no longer unhealthy
+ * Re-add new locker code but this time don't let locking code hold redis connections for any length of time
+ * Create incident once org has had unhealthy webhooks for 20 minutes
+
+v7.1.6
+----------
+ * Revert "Rework locker code for reusablity"
+
+v7.1.5
+----------
+ * Pin to go 1.17.2
+
+v7.1.4
+----------
+ * Rework redis marker and locker code for reusablity
+ * Test with Redis 3.2.4
+ * Add util class to track the state of something in redis over a recent time period
+ * Remove unneeded check for RP's celery task to retry messages
+
+v7.1.3
+----------
+ * Add logging to msg retry task
+
+v7.1.2
+----------
+ * Add task to retry errored messages
+
+v7.1.1
+----------
+ * Remove notification.channel_id
+
+v7.1.0
+----------
+ * Update to latest goflow with expression changes
+ * Make LUA script to queue messages to courier easier to understand
+ * Explicitly exclude msg fields from marshalling that courier doesn't use
+ * Remove unused code for looking up msgs by UUID
+
 v7.0.1
 ----------
  * Update to latest goflow

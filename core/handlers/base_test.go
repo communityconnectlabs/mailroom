@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
-	"time"
 
+	"github.com/nyaruka/gocommon/dbutil/assertdb"
 	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/goflow/envs"
@@ -17,7 +17,6 @@ import (
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/core/runner"
 	"github.com/nyaruka/mailroom/runtime"
-	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 
 	"github.com/gomodule/redigo/redis"
@@ -176,7 +175,7 @@ func RunTestCases(t *testing.T, ctx context.Context, rt *runtime.Runtime, tcs []
 		oa, err = oa.CloneForSimulation(ctx, rt, map[assets.FlowUUID]json.RawMessage{flowUUID: flowDef}, nil)
 		assert.NoError(t, err)
 
-		flow, err := oa.Flow(flowUUID)
+		flow, err := oa.FlowByUUID(flowUUID)
 		require.NoError(t, err)
 
 		options := runner.NewStartOptions()
@@ -254,11 +253,9 @@ func RunTestCases(t *testing.T, ctx context.Context, rt *runtime.Runtime, tcs []
 		err = tx.Commit()
 		assert.NoError(t, err)
 
-		time.Sleep(500 * time.Millisecond)
-
 		// now check our assertions
 		for j, a := range tc.SQLAssertions {
-			testsuite.AssertQuery(t, rt.DB, a.SQL, a.Args...).Returns(a.Count, "%d:%d: mismatch in expected count for query: %s", i, j, a.SQL)
+			assertdb.Query(t, rt.DB, a.SQL, a.Args...).Returns(a.Count, "%d:%d: mismatch in expected count for query: %s", i, j, a.SQL)
 		}
 
 		for j, a := range tc.Assertions {
@@ -266,4 +263,33 @@ func RunTestCases(t *testing.T, ctx context.Context, rt *runtime.Runtime, tcs []
 			assert.NoError(t, err, "%d:%d error checking assertion", i, j)
 		}
 	}
+}
+
+func RunFlowAndApplyEvents(t *testing.T, ctx context.Context, rt *runtime.Runtime, env envs.Environment, eng flows.Engine, oa *models.OrgAssets, flowRef *assets.FlowReference, contact *flows.Contact) {
+	trigger := triggers.NewBuilder(env, flowRef, contact).Manual().Build()
+	fs, sprint, err := eng.NewSession(oa.SessionAssets(), trigger)
+	require.NoError(t, err)
+
+	tx, err := rt.DB.BeginTxx(ctx, nil)
+	require.NoError(t, err)
+
+	session, err := models.NewSession(ctx, tx, oa, fs, sprint)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	scene := models.NewSceneForSession(session)
+
+	tx, err = rt.DB.BeginTxx(ctx, nil)
+	require.NoError(t, err)
+
+	err = models.HandleEvents(ctx, rt, tx, oa, scene, sprint.Events())
+	require.NoError(t, err)
+
+	err = models.ApplyEventPreCommitHooks(ctx, rt, tx, oa, []*models.Scene{scene})
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
 }
