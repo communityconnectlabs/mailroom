@@ -27,7 +27,6 @@ import (
 	"github.com/nyaruka/null"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/nyaruka/mailroom/utils/dbutil"
 )
 
 // Register a airtime service factory with the engine
