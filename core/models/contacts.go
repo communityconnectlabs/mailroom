@@ -1073,7 +1073,7 @@ func GetLastContactOptOutEvent(ctx context.Context, db Queryer, contactID Contac
 
 	// read event
 	evt := &ChannelEvent{}
-	err = dbutil.ReadJSONRow(event, &evt.e)
+	err = dbutil.ScanJSON(event, &evt.e)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error reading event definition by contact: %d", contactID)
 	}

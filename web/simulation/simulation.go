@@ -244,8 +244,8 @@ func handleResume(ctx context.Context, rt *runtime.Runtime, r *http.Request) (in
 						// non-simulation IVR triggers to use that so that this is consistent.
 						sessionTrigger = tb.Manual().WithConnection(testChannel, testURN, "", fmt.Sprintf("%s:%s", oa.Org().ConfigValue("account_sid", ""), oa.Org().ConfigValue("auth_token", ""))).Build()
 					} else {
-						triggerExtraXValue := xtypes.JSONToXValue([]byte(trigger.Extra()))
-						triggerExtraXObject, _ := xtypes.ToXObject(oa.Env(), triggerExtraXValue)
+						triggerExtraXValue := types.JSONToXValue([]byte(trigger.Extra()))
+						triggerExtraXObject, _ := types.ToXObject(oa.Env(), triggerExtraXValue)
 						sessionTrigger = tb.Msg(msgResume.Msg()).WithMatch(trigger.Match()).WithParams(triggerExtraXObject).Build()
 					}
 

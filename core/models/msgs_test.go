@@ -50,7 +50,7 @@ func TestNewOutgoingFlowMsg(t *testing.T) {
 		ExpectedMetadata     map[string]interface{}
 		ExpectedMsgCount     int
 		ExpectedPriority     bool
-        HasError             bool
+		HasError             bool
 	}{
 		{
 			ChannelUUID:          "74729f45-7f29-4868-9dc4-90e491e3c7d8",
@@ -65,7 +65,7 @@ func TestNewOutgoingFlowMsg(t *testing.T) {
 			ExpectedMetadata:     map[string]interface{}{},
 			ExpectedMsgCount:     1,
 			ExpectedPriority:     true,
-            HasError:             true,
+			HasError:             true,
 		},
 		{
 			ChannelUUID:          "74729f45-7f29-4868-9dc4-90e491e3c7d8",
@@ -159,7 +159,7 @@ func TestNewOutgoingFlowMsg(t *testing.T) {
 			session.SetIncomingMsg(flows.MsgID(tc.ResponseTo), null.NullString)
 		}
 
-		flowMsg := flows.NewMsgOut(tc.URN, assets.NewChannelReference(tc.ChannelUUID, "Test Channel"), tc.Text, tc.Attachments, tc.QuickReplies, nil, tc.Topic)
+		flowMsg := flows.NewMsgOut(tc.URN, assets.NewChannelReference(tc.ChannelUUID, "Test Channel"), tc.Text, tc.Attachments, tc.QuickReplies, nil, tc.Topic, "", flows.ShareableIconsConfig{})
 		msg, err := models.NewOutgoingFlowMsg(rt, oa.Org(), channel, session, flow, flowMsg, now)
 
 		assert.NoError(t, err)
@@ -204,7 +204,7 @@ func TestNewOutgoingFlowMsg(t *testing.T) {
 
 	// check that msg loop detection triggers after 20 repeats of the same text
 	newOutgoing := func(text string) *models.Msg {
-		flowMsg := flows.NewMsgOut(urns.URN(fmt.Sprintf("tel:+250700000001?id=%d", testdata.Cathy.URNID)), assets.NewChannelReference(testdata.TwilioChannel.UUID, "Twilio"), text, nil, nil, nil, flows.NilMsgTopic)
+		flowMsg := flows.NewMsgOut(urns.URN(fmt.Sprintf("tel:+250700000001?id=%d", testdata.Cathy.URNID)), assets.NewChannelReference(testdata.TwilioChannel.UUID, "Twilio"), text, nil, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})
 		msg, err := models.NewOutgoingFlowMsg(rt, oa.Org(), channel, session, flow, flowMsg, now)
 		require.NoError(t, err)
 		return msg
@@ -249,6 +249,8 @@ func TestMarshalMsg(t *testing.T) {
 		[]string{"yes", "no"},
 		nil,
 		flows.MsgTopicPurchase,
+		"",
+		flows.ShareableIconsConfig{},
 	)
 
 	// create a non-priority flow message.. i.e. the session isn't responding to an incoming message
@@ -303,7 +305,7 @@ func TestMarshalMsg(t *testing.T) {
 		assets.NewChannelReference(testdata.TwilioChannel.UUID, "Test Channel"),
 		"Hi there",
 		nil, nil, nil,
-		flows.NilMsgTopic,
+		flows.NilMsgTopic, "", flows.ShareableIconsConfig{},
 	)
 	in1 := testdata.InsertIncomingMsg(db, testdata.Org1, testdata.TwilioChannel, testdata.Cathy, "test", models.MsgStatusHandled)
 	session.SetIncomingMsg(flows.MsgID(in1.ID()), null.String("EX123"))
@@ -345,7 +347,7 @@ func TestMarshalMsg(t *testing.T) {
 
 	// try a broadcast message which won't have session and flow fields set
 	bcastID := testdata.InsertBroadcast(db, testdata.Org1, `eng`, map[envs.Language]string{`eng`: "Blast"}, models.NilScheduleID, []*testdata.Contact{testdata.Cathy}, nil)
-	bcastMsg1 := flows.NewMsgOut(urn, assets.NewChannelReference(testdata.TwilioChannel.UUID, "Test Channel"), "Blast", nil, nil, nil, flows.NilMsgTopic)
+	bcastMsg1 := flows.NewMsgOut(urn, assets.NewChannelReference(testdata.TwilioChannel.UUID, "Test Channel"), "Blast", nil, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})
 	msg3, err := models.NewOutgoingBroadcastMsg(rt, oa.Org(), channel, testdata.Cathy.ID, bcastMsg1, time.Date(2021, 11, 9, 14, 3, 30, 0, time.UTC), bcastID)
 	require.NoError(t, err)
 
@@ -475,8 +477,8 @@ func TestGetMsgRepetitions(t *testing.T) {
 
 	dates.SetNowSource(dates.NewFixedNowSource(time.Date(2021, 11, 18, 12, 13, 3, 234567, time.UTC)))
 
-	msg1 := flows.NewMsgOut(testdata.Cathy.URN, nil, "foo", nil, nil, nil, flows.NilMsgTopic)
-	msg2 := flows.NewMsgOut(testdata.Cathy.URN, nil, "bar", nil, nil, nil, flows.NilMsgTopic)
+	msg1 := flows.NewMsgOut(testdata.Cathy.URN, nil, "foo", nil, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})
+	msg2 := flows.NewMsgOut(testdata.Cathy.URN, nil, "bar", nil, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})
 
 	assertRepetitions := func(m *flows.MsgOut, expected int) {
 		count, err := models.GetMsgRepetitions(rp, testdata.Cathy.ID, m)
@@ -578,7 +580,7 @@ func TestSelectContactMessages(t *testing.T) {
 
 	now := time.Now()
 	msgIn := testdata.InsertIncomingMsg(db, testdata.Org1, testdata.TwilioChannel, testdata.Cathy, "in 1", models.MsgStatusHandled)
-	msgOut := testdata.InsertOutgoingMsg(db, testdata.Org1, testdata.TwilioChannel, testdata.Cathy, "out 1", []utils.Attachment{"image/jpeg:hi.jpg"}, models.MsgStatusSent)
+	msgOut := testdata.InsertOutgoingMsg(db, testdata.Org1, testdata.TwilioChannel, testdata.Cathy, "out 1", []utils.Attachment{"image/jpeg:hi.jpg"}, models.MsgStatusSent, false)
 
 	msgs, err := models.SelectContactMessages(ctx, db, int(testdata.Cathy.ID), now)
 

@@ -12,6 +12,7 @@ import (
 	"github.com/nyaruka/goflow/flows/events"
 	"github.com/nyaruka/null"
 	"github.com/pkg/errors"
+	"github.com/nyaruka/gocommon/uuids"
 )
 
 type FlowRunID int64
@@ -205,78 +206,6 @@ WHERE
 	fs.contact_id = ANY($2)
 `
 
-// RunExpiration looks up the run expiration for the passed in run, can return nil if the run is no longer active
-func RunExpiration(ctx context.Context, db *sqlx.DB, runID FlowRunID) (*time.Time, error) {
-	var expiration time.Time
-	err := db.Get(&expiration, `SELECT expires_on FROM flows_flowrun WHERE id = $1 AND is_active = TRUE`, runID)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, errors.Wrapf(err, "unable to select expiration for run: %d", runID)
-	}
-	return &expiration, nil
-}
-
-// ExitSessions marks the passed in sessions as completed, also doing so for all associated runs
-func ExitSessions(ctx context.Context, tx Queryer, sessionIDs []SessionID, exitType ExitType, now time.Time) error {
-	if len(sessionIDs) == 0 {
-		return nil
-	}
-
-	// map exit type to statuses for sessions and runs
-	sessionStatus := exitToSessionStatusMap[exitType]
-	runStatus, found := exitToRunStatusMap[exitType]
-	if !found {
-		return errors.Errorf("unknown exit type: %s", exitType)
-	}
-
-	// first interrupt our runs
-	start := time.Now()
-	res, err := tx.ExecContext(ctx, exitSessionRunsSQL, pq.Array(sessionIDs), exitType, now, runStatus)
-	if err != nil {
-		return errors.Wrapf(err, "error exiting session runs")
-	}
-	rows, _ := res.RowsAffected()
-	logrus.WithField("count", rows).WithField("elapsed", time.Since(start)).Debug("exited session runs")
-
-	// then our sessions
-	start = time.Now()
-
-	res, err = tx.ExecContext(ctx, exitSessionsSQL, pq.Array(sessionIDs), now, sessionStatus)
-	if err != nil {
-		return errors.Wrapf(err, "error exiting sessions")
-	}
-	rows, _ = res.RowsAffected()
-	logrus.WithField("count", rows).WithField("elapsed", time.Since(start)).Debug("exited sessions")
-
-	return nil
-}
-
-const exitSessionRunsSQL = `
-UPDATE
-	flows_flowrun
-SET
-	is_active = FALSE,
-	exit_type = $2,
-	exited_on = $3,
-	status = $4,
-	modified_on = NOW()
-WHERE
-	id = ANY (SELECT id FROM flows_flowrun WHERE session_id = ANY($1) AND is_active = TRUE)
-`
-
-const exitSessionsSQL = `
-UPDATE
-	flows_flowsession
-SET
-	ended_on = $2,
-	status = $3
-WHERE
-	id = ANY ($1) AND
-	status = 'W'
-`
-
 // InterruptContactRuns interrupts all runs and sesions that exist for the passed in list of contacts
 func InterruptContactRuns(ctx context.Context, tx Queryer, sessionType FlowType, contactIDs []flows.ContactID, now time.Time) error {
 	if len(contactIDs) == 0 {
@@ -394,22 +323,13 @@ func NewEmptyRun(ctx context.Context, db Queryer, contactID flows.ContactID, flo
 	r.UUID = flows.RunUUID(uuids.New())
 	r.Status = RunStatusCompleted
 	r.CreatedOn = time.Now()
-	r.ExpiresOn = nil
+	r.ExitedOn = nil
 	r.ModifiedOn = time.Now()
 	r.ContactID = contactID
 	r.FlowID = flowID
 	r.StartID = NilStartID
 	r.OrgID = orgID
-	r.IsActive = false
-	r.ExitType = ExitCompleted
 	r.Responded = false
-
-	filteredEvents := make([]flows.Event, 0)
-	eventJSON, err := json.Marshal(filteredEvents)
-	if err != nil {
-		return errors.Wrapf(err, "error marshalling events for run on creating empty run")
-	}
-	r.Events = string(eventJSON)
 
 	path := make([]Step, 0)
 	pathJSON, err := json.Marshal(path)
@@ -430,11 +350,11 @@ func NewEmptyRun(ctx context.Context, db Queryer, contactID flows.ContactID, flo
 	_, err = db.ExecContext(ctx,
 		`
 			INSERT INTO
-				flows_flowrun(uuid, is_active, created_on, modified_on, exited_on, exit_type, status, expires_on, responded, results, path, events, current_node_uuid, contact_id, flow_id, org_id, session_id, start_id, parent_uuid, connection_id)
-				VALUES($1, $2, NOW(), NOW(), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+				flows_flowrun(uuid, created_on, modified_on, exited_on, status, responded, results, path, current_node_uuid, contact_id, flow_id, org_id, session_id, start_id, parent_uuid, connection_id)
+				VALUES($1, NOW(), NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 				RETURNING id
 			`,
-		r.UUID, r.IsActive, exitedOn, r.ExitType, r.Status, r.ExpiresOn, r.Responded, r.Results, r.Path, r.Events, nil, r.ContactID, r.FlowID, r.OrgID, nil, nil, nil, nil,
+		r.UUID, exitedOn, r.Status, r.Responded, r.Results, r.Path, nil, r.ContactID, r.FlowID, r.OrgID, nil, nil, nil, nil,
 	)
 
 	if err != nil {

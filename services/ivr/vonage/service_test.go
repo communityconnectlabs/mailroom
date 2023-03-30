@@ -72,19 +72,19 @@ func TestResponseForSprint(t *testing.T) {
 	}{
 		{
 			[]flows.Event{
-				events.NewIVRCreated(flows.NewMsgOut(urn, channelRef, "hello world", nil, nil, nil, flows.NilMsgTopic), "", flows.ShareableIconsConfig{}))),
+				events.NewIVRCreated(flows.NewMsgOut(urn, channelRef, "hello world", nil, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})),
 			},
 			`[{"action":"talk","text":"hello world"}]`,
 		},
 		{
 			[]flows.Event{
-				events.NewIVRCreated(flows.NewMsgOut(urn, channelRef, "hello world", []utils.Attachment{utils.Attachment("audio:/recordings/foo.wav")}, nil, nil, flows.NilMsgTopic)),
+				events.NewIVRCreated(flows.NewMsgOut(urn, channelRef, "hello world", []utils.Attachment{utils.Attachment("audio:/recordings/foo.wav")}, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})),
 			},
 			`[{"action":"stream","streamUrl":["/recordings/foo.wav"]}]`,
 		},
 		{
 			[]flows.Event{
-				events.NewIVRCreated(flows.NewMsgOut(urn, channelRef, "hello world", []utils.Attachment{utils.Attachment("audio:https://temba.io/recordings/foo.wav")}, nil, nil, flows.NilMsgTopic)),
+				events.NewIVRCreated(flows.NewMsgOut(urn, channelRef, "hello world", []utils.Attachment{utils.Attachment("audio:https://temba.io/recordings/foo.wav")}, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})),
 			},
 			`[{"action":"stream","streamUrl":["https://temba.io/recordings/foo.wav"]}]`,
 		},

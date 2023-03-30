@@ -11,7 +11,6 @@ import (
 	"github.com/nyaruka/goflow/assets"
 	"github.com/nyaruka/goflow/envs"
 	"github.com/nyaruka/goflow/flows"
-	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
@@ -665,12 +664,12 @@ func TestAddContactToOptOutedGroups(t *testing.T) {
 	err := e.Insert(ctx, db)
 	require.NoError(t, err)
 
-	testsuite.AssertQuery(t, db, countAddedToGroup, testdata.Cathy.ID, testdata.TestersGroup.ID).Returns(0)
+	assertdb.Query(t, db, countAddedToGroup, testdata.Cathy.ID, testdata.TestersGroup.ID).Returns(0)
 
 	err = models.AddContactToOptOutedGroups(ctx, rt, testdata.Org1.ID, testdata.Cathy.ID)
 	require.NoError(t, err)
 
-	testsuite.AssertQuery(t, db, countAddedToGroup, testdata.Cathy.ID, testdata.TestersGroup.ID).Returns(1)
+	assertdb.Query(t, db, countAddedToGroup, testdata.Cathy.ID, testdata.TestersGroup.ID).Returns(1)
 }
 
 func TestUpdateContactOptOutChannelEvent(t *testing.T) {
@@ -700,7 +699,7 @@ func TestUpdateContactOptOutChannelEvent(t *testing.T) {
 	sqlQuery := fmt.Sprintf("SELECT  fields->'%s'->'text' FROM contacts_contact WHERE id = $1", optOutMsgUUID)
 
 	expected := []byte(fmt.Sprintf("\"%s\"", optOutMsg))
-	testsuite.AssertQuery(t, db, sqlQuery, testdata.Alexandria.ID).Returns(expected)
+	assertdb.Query(t, db, sqlQuery, testdata.Alexandria.ID).Returns(expected)
 }
 
 const countAddedToGroup = `

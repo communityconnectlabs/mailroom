@@ -319,7 +319,7 @@ func AddContactsToGroupAndCampaigns(ctx context.Context, db *sqlx.DB, oa *OrgAss
 	// add our contacts in batches of 500
 	batch := make([]ContactID, 0, 500)
 	for _, id := range contactIDs {
-		exists, _ := CheckContact(ctx, db, org, id)
+		exists, _ := CheckContact(ctx, db, oa, id)
 		if exists == true {
 			batch = append(batch, id)
 		}

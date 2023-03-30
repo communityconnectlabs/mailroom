@@ -3,6 +3,7 @@ package starts
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/nyaruka/gocommon/dbutil/assertdb"
@@ -16,8 +17,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"testing"
 	"github.com/olivere/elastic/v7"
 )
 

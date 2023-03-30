@@ -20,7 +20,7 @@ require (
 	github.com/gofrs/uuid v3.3.0+incompatible
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang/protobuf v1.5.2
-	github.com/gomodule/redigo v2.0.0+incompatible
+	github.com/gomodule/redigo v1.8.8
 	github.com/google/go-querystring v1.1.0
 	github.com/gorilla/schema v1.1.0
 	github.com/jmoiron/sqlx v1.3.4
