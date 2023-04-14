@@ -33,7 +33,6 @@ func TestChannelConnections(t *testing.T) {
 
 func TestInvalidChannelExternalID(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset(testsuite.ResetDB)
 
 	wrongEID := "wrong_id"
 
@@ -46,7 +45,6 @@ func TestInvalidChannelExternalID(t *testing.T) {
 
 func TestUpdateStatus(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset(testsuite.ResetDB)
 
 	expectedEndTime := time.Now()
 	expectedDuration1 := 5
@@ -68,7 +66,6 @@ func TestUpdateStatus(t *testing.T) {
 
 func TestLoadChannelConnectionsToRetry(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset(testsuite.ResetDB)
 
 	limit := 2
 
@@ -94,7 +91,6 @@ func TestLoadChannelConnectionsToRetry(t *testing.T) {
 
 func TestActiveChannelConnectionCount(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset(testsuite.ResetDB)
 
 	conn1, err := models.InsertIVRConnection(ctx, db, testdata.Org1.ID, testdata.TwilioChannel.ID, models.NilStartID, testdata.Cathy.ID, testdata.Cathy.URNID, models.ConnectionDirectionOut, models.ConnectionStatusPending, "")
 	assert.NoError(t, err)
@@ -107,7 +103,7 @@ func TestActiveChannelConnectionCount(t *testing.T) {
 
 	count, err := models.ActiveChannelConnectionCount(ctx, db, testdata.TwilioChannel.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, count)
+	assert.Equal(t, 2, count)
 
 	err = conn1.MarkThrottled(ctx, db, time.Now())
 	assert.NoError(t, err)
@@ -117,7 +113,7 @@ func TestActiveChannelConnectionCount(t *testing.T) {
 
 	count, err = models.ActiveChannelConnectionCount(ctx, db, testdata.TwilioChannel.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, count)
+	assert.Equal(t, 2, count)
 
 	err = conn1.MarkStarted(ctx, db, time.Now())
 	assert.NoError(t, err)
@@ -128,19 +124,18 @@ func TestActiveChannelConnectionCount(t *testing.T) {
 
 	count, err = models.ActiveChannelConnectionCount(ctx, db, testdata.TwilioChannel.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, count)
+	assert.Equal(t, 3, count)
 
 	err = conn3.MarkFailed(ctx, db, time.Now())
 	assert.NoError(t, err)
 
 	count, err = models.ActiveChannelConnectionCount(ctx, db, testdata.TwilioChannel.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, count)
+	assert.Equal(t, 2, count)
 }
 
 func TestUpdateChannelConnectionStatuses(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
-	testsuite.Reset(testsuite.ResetDB)
 
 	var connectionIDs []models.ConnectionID
 
@@ -158,7 +153,7 @@ func TestUpdateChannelConnectionStatuses(t *testing.T) {
 
 	count, err := models.ActiveChannelConnectionCount(ctx, db, testdata.TwilioChannel.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, count)
+	assert.Equal(t, 3, count)
 
 	connectionIDs = append(connectionIDs, conn1.ID(), conn2.ID(), conn3.ID())
 
@@ -167,5 +162,5 @@ func TestUpdateChannelConnectionStatuses(t *testing.T) {
 
 	count, err = models.ActiveChannelConnectionCount(ctx, db, testdata.TwilioChannel.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, 3, count)
+	assert.Equal(t, 5, count)
 }

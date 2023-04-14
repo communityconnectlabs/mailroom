@@ -64,8 +64,8 @@ const (
 type MsgStatus string
 
 type TrackableLink struct {
-    UUID        string `json:"uuid" db:"uuid"`
-    Destination string `json:"destination" db:"destination"`
+	UUID        string `json:"uuid" db:"uuid"`
+	Destination string `json:"destination" db:"destination"`
 }
 
 const (
@@ -1313,10 +1313,8 @@ SELECT
 	attachments,
 	metadata,
 	channel_id,
-	connection_id,
 	contact_id,
 	contact_urn_id,
-	response_to_id,
 	org_id,
 	topup_id
 FROM

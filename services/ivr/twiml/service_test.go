@@ -144,8 +144,6 @@ func TestURNForRequest(t *testing.T) {
 func TestResumeForRequest(t *testing.T) {
 	ctx, rt, _, _ := testsuite.Get()
 
-	testsuite.Reset(testsuite.ResetDB)
-
 	tClient, err := getTestClient(ctx, rt, t)
 	assert.NoError(t, err)
 

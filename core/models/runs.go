@@ -244,7 +244,6 @@ WHERE
 		  JOIN flows_flow ff ON fr.flow_id = ff.id
 		WHERE 
 		  fr.contact_id = ANY($2) AND 
-		  fr.is_active = TRUE AND
 		  ff.flow_type = $1
 		)
 `

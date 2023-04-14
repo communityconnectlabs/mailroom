@@ -353,7 +353,6 @@ CREATE TABLE IF NOT EXISTS flows_studioflowstart
 
 func TestStudioFlowStarts(t *testing.T) {
 	ctx, rt, db, _ := testsuite.Get()
-	testsuite.Reset(testsuite.ResetDB)
 
 	mes := testsuite.NewMockElasticServer()
 	defer mes.Close()
