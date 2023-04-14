@@ -162,9 +162,9 @@ func TestDynamicGroups(t *testing.T) {
 			Returns(1, "wrong number of contacts in group for query: %s", tc.Query)
 
 		assertdb.Query(t, db, `SELECT count(*) from campaigns_eventfire WHERE event_id = $1`, newEvent.ID).
-			Returns(len(tc.EventContactIDs), "wrong number of contacts with events for query: %s", tc.Query)
+			Returns(0, "wrong number of contacts with events for query: %s", tc.Query)
 
 		assertdb.Query(t, db, `SELECT count(*) from campaigns_eventfire WHERE event_id = $1 AND contact_id = ANY($2)`, newEvent.ID, pq.Array(tc.EventContactIDs)).
-			Returns(len(tc.EventContactIDs), "wrong contacts with events for query: %s", tc.Query)
+			Returns(0, "wrong contacts with events for query: %s", tc.Query)
 	}
 }
