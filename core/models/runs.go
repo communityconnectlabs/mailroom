@@ -8,11 +8,11 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/nyaruka/gocommon/jsonx"
+	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/events"
 	"github.com/nyaruka/null"
 	"github.com/pkg/errors"
-	"github.com/nyaruka/gocommon/uuids"
 )
 
 type FlowRunID int64
@@ -230,9 +230,7 @@ const interruptContactRunsSQL = `
 UPDATE
 	flows_flowrun
 SET
-	is_active = FALSE,
 	exited_on = $3,
-	exit_type = 'I',
 	status = 'I',
 	modified_on = NOW()
 WHERE
@@ -306,9 +304,7 @@ const expireRunsSQL = `
 	UPDATE
 		flows_flowrun fr
 	SET
-		is_active = FALSE,
 		exited_on = NOW(),
-		exit_type = 'E',
 		status = 'E',
 		modified_on = NOW()
 	WHERE
@@ -349,11 +345,11 @@ func NewEmptyRun(ctx context.Context, db Queryer, contactID flows.ContactID, flo
 	_, err = db.ExecContext(ctx,
 		`
 			INSERT INTO
-				flows_flowrun(uuid, created_on, modified_on, exited_on, status, responded, results, path, current_node_uuid, contact_id, flow_id, org_id, session_id, start_id, parent_uuid, connection_id)
-				VALUES($1, NOW(), NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+				flows_flowrun(uuid, created_on, modified_on, exited_on, status, responded, results, path, current_node_uuid, contact_id, flow_id, org_id, session_id, start_id)
+				VALUES($1, NOW(), NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 				RETURNING id
 			`,
-		r.UUID, exitedOn, r.Status, r.Responded, r.Results, r.Path, nil, r.ContactID, r.FlowID, r.OrgID, nil, nil, nil, nil,
+		r.UUID, exitedOn, r.Status, r.Responded, r.Results, r.Path, nil, r.ContactID, r.FlowID, r.OrgID, nil, nil,
 	)
 
 	if err != nil {
