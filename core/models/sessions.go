@@ -284,12 +284,13 @@ SET
 	responded = r.responded::bool,
 	results = r.results,
 	path = r.path::jsonb,
+	events = r.events::jsonb,
 	current_node_uuid = r.current_node_uuid::uuid,
 	modified_on = NOW()
 FROM (
-	VALUES(:uuid, :status, :exited_on, :responded, :results, :path, :current_node_uuid)
+	VALUES(:uuid, :status, :exited_on, :responded, :results, :path, :events, :current_node_uuid)
 ) AS
-	r(uuid, status, exited_on, responded, results, path, current_node_uuid)
+	r(uuid, status, exited_on, responded, results, path, events, current_node_uuid)
 WHERE
 	fr.uuid = r.uuid::uuid
 `

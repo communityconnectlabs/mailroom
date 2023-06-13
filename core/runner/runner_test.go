@@ -235,7 +235,7 @@ func TestBatchStart(t *testing.T) {
 		assertdb.Query(t, db,
 			`SELECT count(*) FROM flows_flowrun WHERE contact_id = ANY($1) and flow_id = $2
 			AND responded = FALSE AND org_id = 1 AND status = 'C'
-			AND results IS NOT NULL AND path IS NOT NULL AND session_id IS NOT NULL`, pq.Array(contactIDs), tc.Flow).
+			AND results IS NOT NULL AND path IS NOT NULL AND events IS NOT NULL AND session_id IS NOT NULL`, pq.Array(contactIDs), tc.Flow).
 			Returns(tc.TotalCount, "%d: unexpected number of runs", i)
 
 		assertdb.Query(t, db,
@@ -285,10 +285,11 @@ func TestResume(t *testing.T) {
 		RunStatus     models.RunStatus
 		Substring     string
 		PathLength    int
+		EventLength   int
 	}{
-		{"Red", models.SessionStatusWaiting, models.RunStatusWaiting, "%I like Red too%", 4},
-		{"Mutzig", models.SessionStatusWaiting, models.RunStatusWaiting, "%they made red Mutzig%", 6},
-		{"Luke", models.SessionStatusCompleted, models.RunStatusCompleted, "%Thanks Luke%", 7},
+		{"Red", models.SessionStatusWaiting, models.RunStatusWaiting, "%I like Red too%", 4, 3},
+		{"Mutzig", models.SessionStatusWaiting, models.RunStatusWaiting, "%they made red Mutzig%", 6, 5},
+		{"Luke", models.SessionStatusCompleted, models.RunStatusCompleted, "%Thanks Luke%", 7, 7},
 	}
 
 	session := sessions[0]
@@ -309,9 +310,9 @@ func TestResume(t *testing.T) {
 
 		runQuery := `SELECT count(*) FROM flows_flowrun WHERE contact_id = $1 AND flow_id = $2
 		 AND status = $3 AND responded = TRUE AND org_id = 1 AND current_node_uuid IS NOT NULL
-		 AND json_array_length(path::json) = $4 AND session_id IS NOT NULL`
+		 AND json_array_length(path::json) = $4 AND json_array_length(events::json) = $5 AND session_id IS NOT NULL`
 
-		assertdb.Query(t, db, runQuery, modelContact.ID(), flow.ID(), tc.RunStatus, tc.PathLength).
+		assertdb.Query(t, db, runQuery, modelContact.ID(), flow.ID(), tc.RunStatus, tc.PathLength, tc.EventLength).
 			Returns(1, "%d: didn't find expected run", i)
 
 		assertdb.Query(t, db, `SELECT count(*) FROM msgs_msg WHERE contact_id = $1 AND direction = 'O' AND text like $2`, modelContact.ID(), tc.Substring).
