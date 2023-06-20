@@ -67,6 +67,7 @@ type FlowRun struct {
 		Responded       bool            `db:"responded"`
 		Results         string          `db:"results"`
 		Path            string          `db:"path"`
+		Events          string          `db:"events"`
 		CurrentNodeUUID null.String     `db:"current_node_uuid"`
 		ContactID       flows.ContactID `db:"contact_id"`
 		FlowID          FlowID          `db:"flow_id"`
@@ -102,12 +103,17 @@ type Step struct {
 	ExitUUID  flows.ExitUUID `json:"exit_uuid,omitempty"`
 }
 
+var keptEvents = map[string]bool{
+	events.TypeMsgCreated:  true,
+	events.TypeMsgReceived: true,
+}
+
 const sqlInsertRun = `
 INSERT INTO
 flows_flowrun(uuid, created_on, modified_on, exited_on, status, responded, results, path, 
-	          current_node_uuid, contact_id, flow_id, org_id, session_id, start_id)
+	          events, current_node_uuid, contact_id, flow_id, org_id, session_id, start_id)
 	   VALUES(:uuid, :created_on, NOW(), :exited_on, :status, :responded, :results, :path,
-	          :current_node_uuid, :contact_id, :flow_id, :org_id, :session_id, :start_id)
+	          :events, :current_node_uuid, :contact_id, :flow_id, :org_id, :session_id, :start_id)
 RETURNING id
 `
 
@@ -149,13 +155,24 @@ func newRun(ctx context.Context, tx *sqlx.Tx, oa *OrgAssets, session *Session, f
 	}
 	run.run = fr
 
+	// we filter which events we write to our events json right now
+	filteredEvents := make([]flows.Event, 0)
 	// mark ourselves as responded if we received a message
 	for _, e := range fr.Events() {
+		if keptEvents[e.Type()] {
+			filteredEvents = append(filteredEvents, e)
+		}
+
+		// mark ourselves as responded if we received a message
 		if e.Type() == events.TypeMsgReceived {
 			r.Responded = true
-			break
 		}
 	}
+	eventJSON, err := json.Marshal(filteredEvents)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error marshalling events for run: %s", run.UUID())
+	}
+	r.Events = string(eventJSON)
 
 	return run, nil
 }
