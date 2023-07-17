@@ -87,7 +87,7 @@ func RetryCalls(ctx context.Context, rt *runtime.Runtime) error {
 			continue
 		}
 
-		err = ivr.RequestCallStartForConnection(ctx, rt, channel, urn, conn)
+		err = ivr.RequestCallStartForConnection(ctx, rt, channel, urn, conn, true)
 		if err != nil {
 			log.WithError(err).Error(err)
 			continue
