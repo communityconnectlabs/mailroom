@@ -201,10 +201,10 @@ func RequestCallStart(ctx context.Context, rt *runtime.Runtime, oa *models.OrgAs
 		return nil, errors.Wrapf(err, "error creating ivr session")
 	}
 
-	return conn, RequestCallStartForConnection(ctx, rt, channel, telURN, conn)
+	return conn, RequestCallStartForConnection(ctx, rt, channel, telURN, conn, false)
 }
 
-func RequestCallStartForConnection(ctx context.Context, rt *runtime.Runtime, channel *models.Channel, telURN urns.URN, conn *models.ChannelConnection) error {
+func RequestCallStartForConnection(ctx context.Context, rt *runtime.Runtime, channel *models.Channel, telURN urns.URN, conn *models.ChannelConnection, isRetry bool) error {
 	// the domain that will be used for callbacks, can be specific for channels due to white labeling
 	domain := channel.ConfigValue(models.ChannelConfigCallbackDomain, rt.Config.Domain)
 
@@ -262,9 +262,15 @@ func RequestCallStartForConnection(ctx context.Context, rt *runtime.Runtime, cha
 	if trace != nil {
 		desc := "Call Requested"
 		isError := false
-		if trace.Response == nil || trace.Response.StatusCode/100 != 2 {
+		if trace.Response == nil || trace.Response.StatusCode != 200 {
 			desc = "Error Requesting Call"
 			isError = true
+		}
+		if isRetry {
+			desc = "Call Retry Requested"
+			if trace.Response == nil || trace.Response.StatusCode != 200 {
+				desc = "Error Requesting Call Retry"
+			}
 		}
 		log := models.NewChannelLog(trace, isError, desc, channel, conn)
 		err := models.InsertChannelLogs(ctx, rt.DB, []*models.ChannelLog{log})
