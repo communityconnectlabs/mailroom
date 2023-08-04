@@ -4,7 +4,7 @@ go 1.17
 
 replace (
 	github.com/nyaruka/gocommon => github.com/greatnonprofits-nfp/gocommon v1.17.2
-	github.com/nyaruka/goflow => github.com/greatnonprofits-nfp/goflow v0.152.2
+	github.com/nyaruka/goflow => github.com/greatnonprofits-nfp/goflow v0.152.3
 )
 
 require (
