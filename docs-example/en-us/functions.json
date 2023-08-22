@@ -377,6 +377,17 @@
         ]
     },
     {
+        "signature": "extract_nested_values(object, path)",
+        "summary": "Takes an object or array and returns an array of values by provided path.",
+        "detail": "",
+        "examples": [
+            {
+                "template": "@(extract_nested_values(contacts, \"*.contact_name\"))",
+                "output": "[\"John\", \"Mary\"]"
+            }
+        ]
+    },
+    {
         "signature": "field(text, index, delimiter)",
         "summary": "Splits `text` using the given `delimiter` and returns the field at `index`.",
         "detail": "The index starts at zero. When splitting with a space, the delimiter is considered to be all whitespace.",
@@ -434,6 +445,21 @@
             {
                 "template": "@(foreach_value(object(\"a\", \"hi there\", \"b\", \"good bye\"), word, 1))",
                 "output": "{a: there, b: bye}"
+            }
+        ]
+    },
+    {
+        "signature": "foreach_format(values, pattern, [path])",
+        "summary": "Creates a new string by applying `func` to each value in `values` and joining by using pattern.",
+        "detail": "If the given function takes more than two argument, you can pass additional arguments after the function.",
+        "examples": [
+            {
+                "template": "@(foreach_format(array(\"a\", \"b\", \"c\"), '%s'))",
+                "output": "abc"
+            },
+            {
+                "template": "@(foreach_format(json([{\"a\": \"x\"}, {\"a\": \"y\"}]), '%s ', \"*.a\", 0))",
+                "output": "x y "
             }
         ]
     },
