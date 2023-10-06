@@ -1022,27 +1022,34 @@ func CreateBroadcastMessages(ctx context.Context, rt *runtime.Runtime, oa *OrgAs
 		urn := urns.NilURN
 		var channel *Channel
 
+		preferredChannel := oa.Org().ConfigValue("sms_preferred_channel", "")
+		if preferredChannel != "" {
+			channel = oa.ChannelByUUID(assets.ChannelUUID(preferredChannel))
+		}
+
 		// we are forcing to send to a non-preferred URN, find the channel
-		if forceURN != urns.NilURN {
-			for _, u := range contact.URNs() {
-				if u.URN().Identity() == forceURN.Identity() {
-					c := channels.GetForURN(u, assets.ChannelRoleSend)
-					if c == nil {
-						return nil, nil
+		if channel == nil {
+			if forceURN != urns.NilURN {
+				for _, u := range contact.URNs() {
+					if u.URN().Identity() == forceURN.Identity() {
+						c := channels.GetForURN(u, assets.ChannelRoleSend)
+						if c == nil {
+							return nil, nil
+						}
+						urn = u.URN()
+						channel = oa.ChannelByUUID(c.UUID())
+						break
 					}
-					urn = u.URN()
-					channel = oa.ChannelByUUID(c.UUID())
-					break
 				}
-			}
-		} else {
-			// no forced URN, find the first URN we can send to
-			for _, u := range contact.URNs() {
-				c := channels.GetForURN(u, assets.ChannelRoleSend)
-				if c != nil {
-					urn = u.URN()
-					channel = oa.ChannelByUUID(c.UUID())
-					break
+			} else {
+				// no forced URN, find the first URN we can send to
+				for _, u := range contact.URNs() {
+					c := channels.GetForURN(u, assets.ChannelRoleSend)
+					if c != nil {
+						urn = u.URN()
+						channel = oa.ChannelByUUID(c.UUID())
+						break
+					}
 				}
 			}
 		}
