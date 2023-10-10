@@ -1239,10 +1239,18 @@ func ResendMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa *OrgAsse
 			ch = channels.GetForURN(contactURN, assets.ChannelRoleSend)
 		}
 
-		if ch != nil {
-			channel := oa.ChannelByUUID(ch.UUID())
-			msg.channel = channel
+		var channel *Channel
+		preferredChannel := oa.Org().ConfigValue("sms_preferred_channel", "")
+		if preferredChannel != "" {
+			channel = oa.ChannelByUUID(assets.ChannelUUID(preferredChannel))
+		}
 
+		if ch != nil {
+			if channel == nil {
+				channel = oa.ChannelByUUID(ch.UUID())
+			}
+
+			msg.channel = channel
 			msg.m.ChannelID = channel.ID()
 			msg.m.ChannelUUID = channel.UUID()
 			msg.m.Status = MsgStatusPending
