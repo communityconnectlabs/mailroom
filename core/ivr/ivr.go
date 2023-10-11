@@ -177,20 +177,28 @@ func RequestCallStart(ctx context.Context, rt *runtime.Runtime, oa *models.OrgAs
 		return nil, errors.Wrapf(err, "unable to parse URN: %s", telURN)
 	}
 
-	// get the channel to use for outgoing calls
-	callChannel := ca.GetForURN(urn, assets.ChannelRoleCall)
-	if callChannel == nil {
-		// can't start call, no channel that can call
-		return nil, nil
+	var channel *models.Channel
+	preferredChannel := oa.Org().ConfigValue("voice_preferred_channel", "")
+	if preferredChannel != "" {
+		channel = oa.ChannelByUUID(assets.ChannelUUID(preferredChannel))
 	}
 
-	hasCall := callChannel.HasRole(assets.ChannelRoleCall)
-	if !hasCall {
-		return nil, nil
-	}
+	if channel == nil {
+		// get the channel to use for outgoing calls
+		callChannel := ca.GetForURN(urn, assets.ChannelRoleCall)
+		if callChannel == nil {
+			// can't start call, no channel that can call
+			return nil, nil
+		}
 
-	// get the channel for this URN
-	channel := callChannel.Asset().(*models.Channel)
+		hasCall := callChannel.HasRole(assets.ChannelRoleCall)
+		if !hasCall {
+			return nil, nil
+		}
+
+		// get the channel for this URN
+		channel = callChannel.Asset().(*models.Channel)
+	}
 
 	// create our channel connection
 	conn, err := models.InsertIVRConnection(
