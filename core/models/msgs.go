@@ -1022,34 +1022,29 @@ func CreateBroadcastMessages(ctx context.Context, rt *runtime.Runtime, oa *OrgAs
 		urn := urns.NilURN
 		var channel *Channel
 
-		preferredChannel := oa.Org().ConfigValue("sms_preferred_channel", "")
-		if preferredChannel != "" {
-			channel = oa.ChannelByUUID(assets.ChannelUUID(preferredChannel))
-		}
+		smsDefaultChannel := oa.Org().ConfigValue("sms_default_channel", "")
 
 		// we are forcing to send to a non-preferred URN, find the channel
-		if channel == nil {
-			if forceURN != urns.NilURN {
-				for _, u := range contact.URNs() {
-					if u.URN().Identity() == forceURN.Identity() {
-						c := channels.GetForURN(u, assets.ChannelRoleSend)
-						if c == nil {
-							return nil, nil
-						}
-						urn = u.URN()
-						channel = oa.ChannelByUUID(c.UUID())
-						break
+		if forceURN != urns.NilURN {
+			for _, u := range contact.URNs() {
+				if u.URN().Identity() == forceURN.Identity() {
+					c := channels.GetForURN(u, assets.ChannelRoleSend, smsDefaultChannel)
+					if c == nil {
+						return nil, nil
 					}
+					urn = u.URN()
+					channel = oa.ChannelByUUID(c.UUID())
+					break
 				}
-			} else {
-				// no forced URN, find the first URN we can send to
-				for _, u := range contact.URNs() {
-					c := channels.GetForURN(u, assets.ChannelRoleSend)
-					if c != nil {
-						urn = u.URN()
-						channel = oa.ChannelByUUID(c.UUID())
-						break
-					}
+			}
+		} else {
+			// no forced URN, find the first URN we can send to
+			for _, u := range contact.URNs() {
+				c := channels.GetForURN(u, assets.ChannelRoleSend, smsDefaultChannel)
+				if c != nil {
+					urn = u.URN()
+					channel = oa.ChannelByUUID(c.UUID())
+					break
 				}
 			}
 		}
@@ -1217,6 +1212,7 @@ func ResendMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa *OrgAsse
 	refails := make([]MsgID, 0, len(msgs))
 
 	resent := make([]*Msg, 0, len(msgs))
+	smsDefaultChannel := oa.Org().ConfigValue("sms_default_channel", "")
 
 	for _, msg := range msgs {
 		var ch *flows.Channel
@@ -1236,20 +1232,11 @@ func ResendMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa *OrgAsse
 				return nil, errors.Wrap(err, "error parsing URN")
 			}
 
-			ch = channels.GetForURN(contactURN, assets.ChannelRoleSend)
-		}
-
-		var channel *Channel
-		preferredChannel := oa.Org().ConfigValue("sms_preferred_channel", "")
-		if preferredChannel != "" {
-			channel = oa.ChannelByUUID(assets.ChannelUUID(preferredChannel))
+			ch = channels.GetForURN(contactURN, assets.ChannelRoleSend, smsDefaultChannel)
 		}
 
 		if ch != nil {
-			if channel == nil {
-				channel = oa.ChannelByUUID(ch.UUID())
-			}
-
+			channel := oa.ChannelByUUID(ch.UUID())
 			msg.channel = channel
 			msg.m.ChannelID = channel.ID()
 			msg.m.ChannelUUID = channel.UUID()

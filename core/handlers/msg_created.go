@@ -87,7 +87,7 @@ func handleMsgCreated(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, oa 
 
 	// get our channel
 	var channel *models.Channel
-	preferredChannel := oa.Org().ConfigValue("sms_preferred_channel", "")
+	preferredChannel := oa.Org().ConfigValue("sms_default_channel", "")
 	if preferredChannel != "" {
 		channel = oa.ChannelByUUID(assets.ChannelUUID(preferredChannel))
 	}

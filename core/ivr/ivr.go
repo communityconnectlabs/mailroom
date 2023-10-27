@@ -178,14 +178,14 @@ func RequestCallStart(ctx context.Context, rt *runtime.Runtime, oa *models.OrgAs
 	}
 
 	var channel *models.Channel
-	preferredChannel := oa.Org().ConfigValue("voice_preferred_channel", "")
+	preferredChannel := oa.Org().ConfigValue("voice_default_channel", "")
 	if preferredChannel != "" {
 		channel = oa.ChannelByUUID(assets.ChannelUUID(preferredChannel))
 	}
 
 	if channel == nil {
 		// get the channel to use for outgoing calls
-		callChannel := ca.GetForURN(urn, assets.ChannelRoleCall)
+		callChannel := ca.GetForURN(urn, assets.ChannelRoleCall, "")
 		if callChannel == nil {
 			// can't start call, no channel that can call
 			return nil, nil
