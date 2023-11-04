@@ -2,8 +2,6 @@ package handlers
 
 import (
 	"context"
-	"github.com/nyaruka/goflow/assets"
-
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/events"
@@ -87,12 +85,7 @@ func handleMsgCreated(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, oa 
 
 	// get our channel
 	var channel *models.Channel
-	preferredChannel := oa.Org().ConfigValue("sms_default_channel", "")
-	if preferredChannel != "" {
-		channel = oa.ChannelByUUID(assets.ChannelUUID(preferredChannel))
-	}
-
-	if channel == nil && event.Msg.Channel() != nil {
+	if event.Msg.Channel() != nil {
 		channel = oa.ChannelByUUID(event.Msg.Channel().UUID)
 		if channel == nil {
 			return errors.Errorf("unable to load channel with uuid: %s", event.Msg.Channel().UUID)

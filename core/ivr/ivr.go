@@ -178,9 +178,9 @@ func RequestCallStart(ctx context.Context, rt *runtime.Runtime, oa *models.OrgAs
 	}
 
 	var channel *models.Channel
-	preferredChannel := oa.Org().ConfigValue("voice_default_channel", "")
-	if preferredChannel != "" {
-		channel = oa.ChannelByUUID(assets.ChannelUUID(preferredChannel))
+	ivrDefaultChannel := oa.Org().ConfigValue("voice_default_channel", "")
+	if ivrDefaultChannel != "" {
+		channel = oa.ChannelByUUID(assets.ChannelUUID(ivrDefaultChannel))
 	}
 
 	if channel == nil {
