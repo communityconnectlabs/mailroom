@@ -10,6 +10,7 @@ import (
 	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/goflow/flows/triggers"
 	"github.com/nyaruka/mailroom/core/runner"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"time"
 
@@ -85,6 +86,7 @@ func handleCalendarAutomation(ctx context.Context, rt *runtime.Runtime, r *http.
 	if err != nil {
 		return errors.Wrapf(err, "error selecting flow %s on organization %d", automationFlow, oa.OrgID()), http.StatusInternalServerError, nil
 	}
+	log := logrus.WithField("flow_name", flow.Name()).WithField("flow_uuid", flow.UUID())
 
 	var attendeeEmail string
 	var attendeeName string
@@ -106,7 +108,7 @@ func handleCalendarAutomation(ctx context.Context, rt *runtime.Runtime, r *http.
 	}
 
 	var params *types.XObject
-	asJSON, err := json.Marshal(map[string]string{
+	paramsMap := map[string]string{
 		"organizer_email":  organizerEmail,
 		"attendee_email":   attendeeEmail,
 		"attendee_name":    attendeeName,
@@ -114,10 +116,12 @@ func handleCalendarAutomation(ctx context.Context, rt *runtime.Runtime, r *http.
 		"start_date":       request.StartTime.DateTime,
 		"end_date":         request.EndTime.DateTime,
 		"event_id":         request.Id,
-	})
+	}
+	asJSON, err := json.Marshal(paramsMap)
 	if err != nil {
 		return errors.Wrapf(err, "unable to marshal extra organization %d", oa.OrgID()), http.StatusInternalServerError, nil
 	}
+	log.WithField("params", paramsMap).Info("flow engine start for ", contactURN)
 	params, err = types.ReadXObject(asJSON)
 
 	// build our flow trigger
