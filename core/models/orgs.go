@@ -121,6 +121,9 @@ func (o *Org) DefaultLocale() envs.Locale { return o.env.DefaultLocale() }
 // Links returns the links added on this org
 func (o *Org) Links() []string { return o.env.Links() }
 
+// Config returns the config of this org
+func (o *Org) Config() map[string]interface{} { return o.env.Config() }
+
 // LocationResolver returns a resolver for locations
 func (o *Org) LocationResolver() envs.LocationResolver { return o.env.LocationResolver() }
 
