@@ -18,6 +18,6 @@ func TestServer(t *testing.T) {
 	blake := testdata.InsertContact(db, testdata.Org1, "9eef59ef-21b3-4f51-a296-937529a30e38", "Blake", envs.NilLanguage, models.ContactStatusActive)
 
 	web.RunWebTests(t, ctx, rt, "testdata/calendar_automation.json", map[string]string{
-		"black_uuid": fmt.Sprintf("%s", blake.UUID),
+		"black_uuid": fmt.Sprintf("%s", string(blake.UUID)),
 	})
 }

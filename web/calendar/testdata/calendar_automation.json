@@ -9,7 +9,7 @@
     }
   },
   {
-    "label": "invalid org_id",
+    "label": "invalid request",
     "method": "POST",
     "path": "/mr/calendar/trigger",
     "body": {
@@ -49,9 +49,9 @@
         }
       ],
       "location": {
-        "displayName": "+16195927180",
+        "displayName": "+16190000000",
         "locationType": "default",
-        "uniqueId": "+16195927180",
+        "uniqueId": "+16190000000",
         "uniqueIdType": "private"
       },
       "organizer": {
@@ -67,9 +67,7 @@
     },
     "status": 200,
     "response": {
-      "contact_uuid": [
-        $black_uuid$,
-      ]
+      "contact_uuid": $black_uuid$
     }
   }
 ]
