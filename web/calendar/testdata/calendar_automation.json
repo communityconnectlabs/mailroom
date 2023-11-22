@@ -15,9 +15,9 @@
     "body": {
       "data": []
     },
-    "status": 500,
+    "status": 400,
     "response": {
-      "error": "request failed validation"
+      "error": "request failed validation: field 'orgId' is required"
     }
   },
   {
@@ -63,11 +63,11 @@
       "onlineMeeting": {
         "joinUrl": "https://teams.microsoft.com/l/meetup-join"
       },
-      "orgId": 5
+      "orgId": 1
     },
     "status": 200,
     "response": {
-      "contact_uuid": $black_uuid$
+      "contact_uuid": "$contact_uuid$"
     }
   }
 ]

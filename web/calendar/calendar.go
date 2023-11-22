@@ -81,6 +81,9 @@ func handleCalendarAutomation(ctx context.Context, rt *runtime.Runtime, r *http.
 	}
 
 	automationFlow := oa.Org().ConfigValue("calendar_automation_flow", "")
+	if automationFlow == "" {
+		return errors.Wrapf(err, "organization %d does not have a calendar automation flow", oa.OrgID()), http.StatusInternalServerError, nil
+	}
 
 	flow, err := models.LoadFlowByUUID(ctx, rt.DB, oa.OrgID(), assets.FlowUUID(automationFlow))
 	if err != nil {
