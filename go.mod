@@ -4,7 +4,7 @@ go 1.17
 
 replace (
 	github.com/nyaruka/gocommon => github.com/communityconnectlabs/gocommon v1.17.2
-	github.com/nyaruka/goflow => github.com/communityconnectlabs/goflow v0.152.5
+	github.com/nyaruka/goflow => github.com/communityconnectlabs/goflow v0.152.6
 )
 
 require (
