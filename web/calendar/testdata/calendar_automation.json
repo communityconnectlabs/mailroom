@@ -1,0 +1,73 @@
+[
+  {
+    "label": "illegal method",
+    "method": "GET",
+    "path": "/mr/calendar/trigger",
+    "status": 405,
+    "response": {
+      "error": "illegal method: GET"
+    }
+  },
+  {
+    "label": "invalid request",
+    "method": "POST",
+    "path": "/mr/calendar/trigger",
+    "body": {
+      "data": []
+    },
+    "status": 400,
+    "response": {
+      "error": "request failed validation: field 'orgId' is required"
+    }
+  },
+  {
+    "label": "response is the contact that the flow was started for",
+    "method": "POST",
+    "path": "/mr/calendar/trigger",
+    "body": {
+      "id": "AAMkAGFlNzQxZTMwLTU1NDEtNGM3Ni05ZWMyLTY4OTQ2NzQ1OWUzMgBGAAAAAACnmDliThTqT7TiC873DEj6BwC2d71CBdIqSZeOg6n8eO3cAAAAAAENAAC2d71CBdIqSZeOg6n8eO3cAAAMbAOCAAA=",
+      "subject": "Testing",
+      "start_time": {
+        "dateTime": "2023-11-15T09:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end_time": {
+        "dateTime": "2023-11-15T09:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "attendees": [
+        {
+          "type": "required",
+          "status": {
+            "response": "none",
+            "time": "0001-01-01T00:00:00Z"
+          },
+          "emailAddress": {
+            "name": "Teeh Amaral",
+            "address": "TeehAmaral@7bmk4l.onmicrosoft.com"
+          }
+        }
+      ],
+      "location": {
+        "displayName": "+16190000000",
+        "locationType": "default",
+        "uniqueId": "+16190000000",
+        "uniqueIdType": "private"
+      },
+      "organizer": {
+        "emailAddress": {
+          "name": "Rajrishi Dutta",
+          "address": "rajrishi.d@7bmk4l.onmicrosoft.com"
+        }
+      },
+      "onlineMeeting": {
+        "joinUrl": "https://teams.microsoft.com/l/meetup-join"
+      },
+      "orgId": 1
+    },
+    "status": 200,
+    "response": {
+      "contact_uuid": "$contact_uuid$"
+    }
+  }
+]
