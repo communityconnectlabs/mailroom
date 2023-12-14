@@ -17,15 +17,13 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-
 func init() {
 	models.RegisterEventHandler(events.TypeFeedbackRequested, handleFeedbackRequested)
 }
 
-
 func handleFeedbackRequested(ctx context.Context, rt *runtime.Runtime, tx *sqlx.Tx, oa *models.OrgAssets, scene *models.Scene, e flows.Event) error {
 	event := e.(*events.FeedbackRequestedEvent)
-	
+
 	// must be in a session
 	if scene.Session() == nil {
 		return errors.Errorf("cannot handle msg created event without session")
@@ -35,7 +33,7 @@ func handleFeedbackRequested(ctx context.Context, rt *runtime.Runtime, tx *sqlx.
 		"contact_uuid": scene.ContactUUID(),
 		"session_id":   scene.SessionID(),
 	}).Debug("feedback requested event")
-		
+
 	// messages in messaging flows must have urn id set on them, if not, go look it up
 	if scene.Session().SessionType() == models.FlowTypeMessaging && event.FeedbackRequest.URN() != urns.NilURN {
 		urn := event.FeedbackRequest.URN()
@@ -60,26 +58,33 @@ func handleFeedbackRequested(ctx context.Context, rt *runtime.Runtime, tx *sqlx.
 
 	run, _ := scene.Session().FindStep(e.StepUUID())
 	flow, _ := oa.FlowByUUID(run.FlowReference().UUID)
+	msgText := ""
+	msgType := flows.NilMsgTopic
 
-	questions, err := json.Marshal(map[string]interface{}{
-		"feedback_request": map[string]string{
-			"comment_question": event.FeedbackRequest.CommentQuestion(),
-			"star_rating_question": event.FeedbackRequest.StarRatingQuestion(),
-		},
-	})
-	if err != nil {
-		return errors.Wrapf(err, "error creating outgoing message to %s", event.FeedbackRequest.URN())
+	if channel.Type() == "WCH" {
+		questions, err := json.Marshal(map[string]interface{}{
+			"feedback_request": map[string]string{
+				"comment_question":     event.FeedbackRequest.CommentQuestion(),
+				"star_rating_question": event.FeedbackRequest.StarRatingQuestion(),
+			},
+		})
+		if err != nil {
+			return errors.Wrapf(err, "error creating outgoing message to %s", event.FeedbackRequest.URN())
+		}
+		msgText = string(questions)
+		msgType = flows.MsgTopicFeedback
+	} else {
+		msgText = event.FeedbackRequest.SMSQuestion()
 	}
-
 
 	msgOut := flows.NewMsgOut(
 		event.FeedbackRequest.URN(),
 		event.FeedbackRequest.Channel(),
-		string(questions),
+		msgText,
 		[]utils.Attachment{},
 		[]string{},
 		nil,
-		flows.MsgTopicFeedback,
+		msgType,
 		"",
 		flows.ShareableIconsConfig{},
 	)
