@@ -98,7 +98,9 @@ func handleCalendarAutomation(ctx context.Context, rt *runtime.Runtime, r *http.
 		attendeeName = request.Attendees[0].EmailAddress.Name
 	}
 	contactURN := fmt.Sprintf("tel:%s", request.Location.UniqueId)
+	organizerName := request.Organizer.EmailAddress.Name
 	organizerEmail := request.Organizer.EmailAddress.Address
+	joinURL := request.OnlineMeeting.JoinUrl
 	subject := request.Subject
 
 	contact, _, _, err := models.GetOrCreateContact(ctx, rt.DB, oa, []urns.URN{urns.URN(contactURN)}, models.NilChannelID)
@@ -112,10 +114,12 @@ func handleCalendarAutomation(ctx context.Context, rt *runtime.Runtime, r *http.
 
 	var params *types.XObject
 	paramsMap := map[string]string{
+		"organizer_name":   organizerName,
 		"organizer_email":  organizerEmail,
 		"attendee_email":   attendeeEmail,
 		"attendee_name":    attendeeName,
 		"calendar_subject": subject,
+		"join_url":         joinURL,
 		"start_date":       request.StartTime.DateTime,
 		"end_date":         request.EndTime.DateTime,
 		"event_id":         request.Id,
