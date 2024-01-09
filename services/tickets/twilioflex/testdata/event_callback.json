@@ -95,22 +95,25 @@
       ],
       "https://chat.twilio.com/v2/Services/IS83760ec293f6814bc6f5de5612f21fc2/Channels/CH1880a9cde40c4dbb88dd97fc3aedac08/Messages/IM8c57eaf105f34905883b1192e9499641": [
         {
-          "sid": "IM40d3a2b3404b4a10a1c914e8d780b3cc",
-          "account_sid": "AC81d44315e19273181bdaefac12cd3c12",
-          "service_sid": "IS83760ec293f6814bc6f5de5612f21fc2",
-          "to": "CHc73a3d9cf9f44afc8500ab01ce8ee0b9",
-          "channel_sid": "CHc73a3d9cf9f44afc8500ab01ce8ee0b9",
-          "date_created": "2016-03-24T20:37:57Z",
-          "date_updated": "2016-03-24T20:37:57Z",
-          "last_updated_by": null,
-          "was_edited": false,
-          "from": "system",
-          "attributes": "{}",
-          "body": "Hello",
-          "index": 0,
-          "type": "text",
-          "media": null,
-          "url": "https://chat.twilio.com/v2/Services/IS83760ec293f6814bc6f5de5612f21fc2/Channels/CH1880a9cde40c4dbb88dd97fc3aedac08/Messages/IM8c57eaf105f34905883b1192e9499641"
+          "status": 200,
+          "body": {
+            "sid": "IM40d3a2b3404b4a10a1c914e8d780b3cc",
+            "account_sid": "AC81d44315e19273181bdaefac12cd3c12",
+            "service_sid": "IS83760ec293f6814bc6f5de5612f21fc2",
+            "to": "CHc73a3d9cf9f44afc8500ab01ce8ee0b9",
+            "channel_sid": "CHc73a3d9cf9f44afc8500ab01ce8ee0b9",
+            "date_created": "2016-03-24T20:37:57Z",
+            "date_updated": "2016-03-24T20:37:57Z",
+            "last_updated_by": null,
+            "was_edited": false,
+            "from": "system",
+            "attributes": "{}",
+            "body": "Hello",
+            "index": 0,
+            "type": "text",
+            "media": null,
+            "url": "https://chat.twilio.com/v2/Services/IS83760ec293f6814bc6f5de5612f21fc2/Channels/CH1880a9cde40c4dbb88dd97fc3aedac08/Messages/IM8c57eaf105f34905883b1192e9499641"
+          }
         }
       ]
     },
