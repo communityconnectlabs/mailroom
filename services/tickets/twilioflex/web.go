@@ -8,12 +8,12 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/nyaruka/gocommon/uuids"
+	"github.com/nyaruka/goflow/assets"
+	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/runtime"
 	"github.com/nyaruka/mailroom/services/tickets"
 	"github.com/nyaruka/mailroom/web"
-	"github.com/nyaruka/goflow/assets"
-	"github.com/nyaruka/goflow/flows"
 	"github.com/pkg/errors"
 )
 
@@ -95,10 +95,16 @@ func handleEventCallback(ctx context.Context, rt *runtime.Runtime, r *http.Reque
 		}
 		file, err := tickets.FetchFile(mediaContent.Links.ContentDirectTemporary, nil)
 		file.ContentType = mediaContent.ContentType
+
+		message, _, err := client.FetchMessage(request.MessageSid, request.ChannelSid)
+		if err != nil {
+			return err, http.StatusBadRequest, nil
+		}
+
 		if err != nil {
 			return errors.Wrapf(err, "error fetching ticket file '%s'", mediaContent.Links.ContentDirectTemporary), http.StatusBadRequest, nil
 		}
-		_, err = tickets.SendReply(ctx, rt, ticket, request.Body, []*tickets.File{file})
+		_, err = tickets.SendReply(ctx, rt, ticket, message.Body, []*tickets.File{file})
 		if err != nil {
 			return err, http.StatusBadRequest, nil
 		}
