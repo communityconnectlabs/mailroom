@@ -436,3 +436,45 @@ func TestFetchMedia(t *testing.T) {
 	assert.Equal(t, "ME59b872f1e52fbd6fe6ad956bbb4fa9bd", response.Sid)
 	assert.Equal(t, "HTTP/1.0 200 OK\r\nContent-Length: 1342\r\n\r\n", string(trace.ResponseTrace))
 }
+
+func TestFetchMessage(t *testing.T) {
+	messageSid := "IM40d3a2b3404b4a10a1c914e8d780b3cc"
+	channelSid := "CHc73a3d9cf9f44afc8500ab01ce8ee0b9"
+	defer httpx.SetRequestor(httpx.DefaultRequestor)
+	httpx.SetRequestor(httpx.NewMockRequestor(map[string][]httpx.MockResponse{
+		fmt.Sprintf("https://chat.twilio.com/v2/Services/IS83760ec293f6814bc6f5de5612f21fc2/Channels/%s/Messages/%s", channelSid, messageSid): {
+			httpx.MockConnectionError,
+			httpx.NewMockResponse(400, nil, `{"message": "Something went wrong", "detail": "Unknown", "code": 1234, "more_info": "https://www.twilio.com/docs/errors/1234"}`),
+			httpx.NewMockResponse(200, nil, `{
+				"sid": "IM40d3a2b3404b4a10a1c914e8d780b3cc",
+				"account_sid": "AC81d44315e19273181bdaefac12cd3c12",
+				"service_sid": "IS83760ec293f6814bc6f5de5612f21fc2",
+				"to": "CHc73a3d9cf9f44afc8500ab01ce8ee0b9",
+				"channel_sid": "CHc73a3d9cf9f44afc8500ab01ce8ee0b9",
+				"date_created": "2016-03-24T20:37:57Z",
+				"date_updated": "2016-03-24T20:37:57Z",
+				"last_updated_by": null,
+				"was_edited": false,
+				"from": "system",
+				"attributes": "{}",
+				"body": "Hello",
+				"index": 0,
+				"type": "text",
+				"media": null,
+				"url": "https://chat.twilio.com/v2/Services/IS83760ec293f6814bc6f5de5612f21fc2/Channels/CHc73a3d9cf9f44afc8500ab01ce8ee0b9/Messages/IM40d3a2b3404b4a10a1c914e8d780b3cc"
+			}`),
+		},
+	}))
+
+	client := twilioflex.NewClient(http.DefaultClient, nil, authToken, accountSid, serviceSid, workspaceSid, flexFlowSid)
+
+	_, _, err := client.FetchMessage(messageSid, channelSid)
+	assert.EqualError(t, err, "unable to connect to server")
+
+	_, _, err = client.FetchMessage(messageSid, channelSid)
+	assert.EqualError(t, err, "Something went wrong")
+
+	response, _, err := client.FetchMessage(messageSid, channelSid)
+	assert.NoError(t, err)
+	assert.Equal(t, "Hello", response.Body)
+}
