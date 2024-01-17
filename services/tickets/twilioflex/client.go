@@ -260,6 +260,18 @@ func (c *Client) FetchMedia(mediaSid string) (*Media, *httpx.Trace, error) {
 	return response, trace, err
 }
 
+// FetchMessage fetch a twilio flex Message by this sid.
+func (c *Client) FetchMessage(messageSid string, channelSid string) (*ChatMessage, *httpx.Trace, error) {
+	fetchUrl := fmt.Sprintf("https://chat.twilio.com/v2/Services/%s/Channels/%s/Messages/%s", c.serviceSid, channelSid, messageSid)
+	response := &ChatMessage{}
+	data := url.Values{}
+	trace, err := c.get(fetchUrl, data, response)
+	if err != nil {
+		return nil, trace, err
+	}
+	return response, trace, err
+}
+
 // https://www.twilio.com/docs/chat/rest/user-resource#user-properties
 type ChatUser struct {
 	AccountSid   string                 `json:"account_sid,omitempty"`
