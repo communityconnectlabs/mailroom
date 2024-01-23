@@ -136,8 +136,8 @@ github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1/go.mod h1:eXthEFrGJvWH
 github.com/cockroachdb/datadriven v0.0.0-20190809214429-80d97fb3cbaa/go.mod h1:zn76sxSg3SzpJ0PPJaLDCu+Bu0Lg3sKTORVIj19EIF8=
 github.com/communityconnectlabs/gocommon v1.17.2 h1:FPzpvFu75C5Xz1X+HXf0mYjvPb8dIuzZz4p6PnHbKb8=
 github.com/communityconnectlabs/gocommon v1.17.2/go.mod h1:nmYyb7MZDM0iW4DYJKiBzfKuE9nbnx+xSHZasuIBOT0=
-github.com/communityconnectlabs/goflow v0.152.8 h1:GqvwquruYXXfIrowZ0cSaZeCHxFrGggJZZdy6CAQpMU=
-github.com/communityconnectlabs/goflow v0.152.8/go.mod h1:FhP0CrKeyAAa1+umsPBnOuf6GgTtE5KEwKg6UAvNCqs=
+github.com/communityconnectlabs/goflow v0.152.9 h1:eug+Uxd5IRMHJlzSY/Cjm4SxnzMlq+/DnJJ6DE+qDXA=
+github.com/communityconnectlabs/goflow v0.152.9/go.mod h1:FhP0CrKeyAAa1+umsPBnOuf6GgTtE5KEwKg6UAvNCqs=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/etcd v3.3.13+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
