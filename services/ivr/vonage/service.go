@@ -377,6 +377,8 @@ func (s *service) RequestCall(number urns.URN, resumeURL string, statusURL strin
 	}
 
 	if machineDetection {
+		callR.MachineDetection = "continue"
+	} else {
 		callR.MachineDetection = "hangup" // if an answering machine answers, just hangup
 	}
 
