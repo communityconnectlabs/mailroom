@@ -75,6 +75,7 @@ type ChannelConnection struct {
 		ModifiedOn     time.Time           `json:"modified_on"     db:"modified_on"`
 		ExternalID     string              `json:"external_id"     db:"external_id"`
 		Status         ConnectionStatus    `json:"status"          db:"status"`
+		AnsweredBy     null.String         `json:"answered_by"     db:"answered_by"`
 		Direction      ConnectionDirection `json:"direction"       db:"direction"`
 		StartedOn      *time.Time          `json:"started_on"      db:"started_on"`
 		EndedOn        *time.Time          `json:"ended_on"        db:"ended_on"`
@@ -461,6 +462,23 @@ func (c *ChannelConnection) UpdateStatus(ctx context.Context, db Queryer, status
 
 	if err != nil {
 		return errors.Wrapf(err, "error updating status for channel connection: %d", c.c.ID)
+	}
+
+	return nil
+}
+
+// UpdateAnsweredBy updates the status for this connection
+func (c *ChannelConnection) UpdateAnsweredBy(ctx context.Context, db Queryer, answeredBy null.String) error {
+	c.c.AnsweredBy = answeredBy
+	var err error
+
+	_, err = db.ExecContext(ctx,
+		`UPDATE channels_channelconnection SET answered_by = $2, modified_on = NOW() WHERE id = $1`,
+		c.c.ID, c.c.AnsweredBy,
+	)
+
+	if err != nil {
+		return errors.Wrapf(err, "error updating answered_by for channel connection id: %d", c.c.ID)
 	}
 
 	return nil

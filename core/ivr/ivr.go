@@ -93,6 +93,8 @@ type Service interface {
 	URNForRequest(r *http.Request) (urns.URN, error)
 
 	CallIDForRequest(r *http.Request) (string, error)
+
+	ProcessAnsweredBy(ctx context.Context, rt *runtime.Runtime, r *http.Request, conn *models.ChannelConnection) error
 }
 
 // HangupCall hangs up the passed in call also taking care of updating the status of our call in the process

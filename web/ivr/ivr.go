@@ -383,6 +383,13 @@ func handleStatus(ctx context.Context, rt *runtime.Runtime, r *http.Request, w h
 		return channel, nil, provider.WriteErrorResponse(w, errors.Wrapf(err, "unable to load channel connection with id: %s", externalID))
 	}
 
+	err = provider.ProcessAnsweredBy(ctx, rt, r, conn)
+
+	// had an error on process answered by? log it and continue
+	if err != nil {
+		logrus.WithError(err).WithField("http_request", r).Error("error while handling answered_by")
+	}
+
 	err = ivr.HandleIVRStatus(ctx, rt, oa, provider, conn, r, w)
 
 	// had an error? mark our connection as errored and log it

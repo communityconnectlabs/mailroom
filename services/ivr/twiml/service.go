@@ -423,6 +423,10 @@ func (s *service) postRequest(sendURL string, form url.Values) (*httpx.Trace, er
 	return httpx.DoTrace(s.httpClient, req, nil, nil, -1)
 }
 
+func (s *service) ProcessAnsweredBy(ctx context.Context, rt *runtime.Runtime, r *http.Request, conn *models.ChannelConnection) error {
+	return nil
+}
+
 // see https://www.twilio.com/docs/api/security
 func TwCalculateSignature(url string, form url.Values, authToken string) ([]byte, error) {
 	var buffer bytes.Buffer
