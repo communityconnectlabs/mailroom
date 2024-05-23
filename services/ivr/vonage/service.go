@@ -228,11 +228,6 @@ func (s *service) PreprocessStatus(ctx context.Context, rt *runtime.Runtime, r *
 	// and our status
 	nxStatus, _ := jsonparser.GetString(body, "status")
 
-	// TODO  make tests around this (maybe change the status handling)
-	if legUUID != "" && (nxStatus == "human" || nxStatus == "machine") {
-		return nil, nil
-	}
-
 	// if we are missing either, this is just a notification of the establishment of the conversation, ignore
 	if legUUID == "" || nxStatus == "" {
 		return nil, nil
@@ -415,7 +410,11 @@ func (s *service) RequestCall(number urns.URN, resumeURL string, statusURL strin
 	}
 
 	if machineDetection {
-		callR.MachineDetection = "continue"
+		callR.AdvancedMachineDetection = AdvancedMachineDetection{
+			Behavior:    "continue",
+			Mode:        "detect",
+			BeepTimeout: 45,
+		}
 	} else {
 		callR.MachineDetection = "hangup" // if an answering machine answers, just hangup
 	}
