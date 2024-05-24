@@ -98,12 +98,13 @@ func (c *ChannelConnection) ID() ConnectionID { return c.c.ID }
 // Status returns the status of this connection
 func (c *ChannelConnection) Status() ConnectionStatus { return c.c.Status }
 
-func (c *ChannelConnection) ExternalID() string   { return c.c.ExternalID }
-func (c *ChannelConnection) OrgID() OrgID         { return c.c.OrgID }
-func (c *ChannelConnection) ContactID() ContactID { return c.c.ContactID }
-func (c *ChannelConnection) ContactURNID() URNID  { return c.c.ContactURNID }
-func (c *ChannelConnection) ChannelID() ChannelID { return c.c.ChannelID }
-func (c *ChannelConnection) StartID() StartID     { return c.c.StartID }
+func (c *ChannelConnection) ExternalID() string      { return c.c.ExternalID }
+func (c *ChannelConnection) OrgID() OrgID            { return c.c.OrgID }
+func (c *ChannelConnection) ContactID() ContactID    { return c.c.ContactID }
+func (c *ChannelConnection) ContactURNID() URNID     { return c.c.ContactURNID }
+func (c *ChannelConnection) ChannelID() ChannelID    { return c.c.ChannelID }
+func (c *ChannelConnection) StartID() StartID        { return c.c.StartID }
+func (c *ChannelConnection) AnsweredBy() null.String { return c.c.AnsweredBy }
 
 func (c *ChannelConnection) ErrorReason() ConnectionError { return ConnectionError(c.c.ErrorReason) }
 func (c *ChannelConnection) ErrorCount() int              { return c.c.ErrorCount }
@@ -252,7 +253,8 @@ SELECT
 	cc.contact_id as contact_id, 
 	cc.contact_urn_id as contact_urn_id, 
 	cc.org_id as org_id, 
-	fsc.flowstart_id as start_id
+	fsc.flowstart_id as start_id,
+	cc.answered_by as answered_by
 FROM
 	channels_channelconnection as cc
 	LEFT OUTER JOIN flows_flowstart_connections fsc ON cc.id = fsc.channelconnection_id

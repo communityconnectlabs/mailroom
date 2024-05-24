@@ -201,6 +201,17 @@ func (s *service) ProcessAnsweredBy(ctx context.Context, rt *runtime.Runtime, r 
 	return nil
 }
 
+func (s *service) GetAnsweredBy(ctx context.Context, rt *runtime.Runtime, conn *models.ChannelConnection) (string, error) {
+	answeredByMap := map[string]string{
+		answeredByHuman:   "human",
+		answeredByMachine: "machine",
+	}
+	if conn.AnsweredBy() != "" {
+		return answeredByMap[string(conn.AnsweredBy())], nil
+	}
+	return "", nil
+}
+
 func (s *service) PreprocessStatus(ctx context.Context, rt *runtime.Runtime, r *http.Request) ([]byte, error) {
 	// parse out the call status, we are looking for a leg of one of our conferences ending in the "forward" case
 	// get our recording url out

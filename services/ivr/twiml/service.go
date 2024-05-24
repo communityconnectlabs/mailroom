@@ -6,6 +6,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"net/http"
@@ -425,6 +426,51 @@ func (s *service) postRequest(sendURL string, form url.Values) (*httpx.Trace, er
 
 func (s *service) ProcessAnsweredBy(ctx context.Context, rt *runtime.Runtime, r *http.Request, conn *models.ChannelConnection) error {
 	return nil
+}
+
+func (s *service) GetAnsweredBy(ctx context.Context, rt *runtime.Runtime, conn *models.ChannelConnection) (string, error) {
+	method := "GET"
+	apiURL := fmt.Sprintf("%s/2010-04-01/Accounts/%s/Calls/%s.json", s.baseURL, s.accountSID, conn.ExternalID())
+	body := ""
+
+	// build our request
+	req, err := http.NewRequest(method, apiURL, strings.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+
+	req.SetBasicAuth(s.accountSID, s.authToken)
+
+	trace, err := httpx.DoTrace(s.httpClient, req, nil, nil, -1)
+	if trace.Response == nil || err != nil {
+		return "", err
+	}
+
+	var result map[string]interface{}
+	err = json.Unmarshal(trace.ResponseBody, &result)
+	if err != nil {
+		return "", err
+	}
+
+	if result["answered_by"] == nil {
+		return "", nil
+	}
+
+	voiceStatusCategories := map[string]flows.CallStatus{
+		"human":               flows.CallStatusVoiceHuman,
+		"unknown":             flows.CallStatusVoiceUnknown,
+		"machine_end_beep":    flows.CallStatusMachineEndBeep,
+		"machine_end_silence": flows.CallStatusMachineEndSilence,
+		"machine_end_other":   flows.CallStatusMachineEndOther,
+	}
+
+	answeredBy := result["answered_by"].(string)
+
+	if trace.Response.StatusCode/100 == 2 {
+		return string(voiceStatusCategories[answeredBy]), nil
+	}
+
+	return "", nil
 }
 
 // see https://www.twilio.com/docs/api/security
