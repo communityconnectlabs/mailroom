@@ -194,7 +194,7 @@ func (s *service) ProcessAnsweredBy(ctx context.Context, rt *runtime.Runtime, r 
 		}
 		err := conn.UpdateAnsweredBy(ctx, rt.DB, null.String(answeredByMap[nxStatus]))
 		if err != nil {
-			logrus.WithError(err).WithField("http_request", r).Error("error while updating answered_by %v", err.Error())
+			logrus.WithError(err).WithField("http_request", r).Error("error while updating answered_by")
 		}
 	}
 
