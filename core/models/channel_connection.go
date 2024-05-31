@@ -75,6 +75,7 @@ type ChannelConnection struct {
 		ModifiedOn     time.Time           `json:"modified_on"     db:"modified_on"`
 		ExternalID     string              `json:"external_id"     db:"external_id"`
 		Status         ConnectionStatus    `json:"status"          db:"status"`
+		AnsweredBy     null.String         `json:"answered_by"     db:"answered_by"`
 		Direction      ConnectionDirection `json:"direction"       db:"direction"`
 		StartedOn      *time.Time          `json:"started_on"      db:"started_on"`
 		EndedOn        *time.Time          `json:"ended_on"        db:"ended_on"`
@@ -97,12 +98,13 @@ func (c *ChannelConnection) ID() ConnectionID { return c.c.ID }
 // Status returns the status of this connection
 func (c *ChannelConnection) Status() ConnectionStatus { return c.c.Status }
 
-func (c *ChannelConnection) ExternalID() string   { return c.c.ExternalID }
-func (c *ChannelConnection) OrgID() OrgID         { return c.c.OrgID }
-func (c *ChannelConnection) ContactID() ContactID { return c.c.ContactID }
-func (c *ChannelConnection) ContactURNID() URNID  { return c.c.ContactURNID }
-func (c *ChannelConnection) ChannelID() ChannelID { return c.c.ChannelID }
-func (c *ChannelConnection) StartID() StartID     { return c.c.StartID }
+func (c *ChannelConnection) ExternalID() string      { return c.c.ExternalID }
+func (c *ChannelConnection) OrgID() OrgID            { return c.c.OrgID }
+func (c *ChannelConnection) ContactID() ContactID    { return c.c.ContactID }
+func (c *ChannelConnection) ContactURNID() URNID     { return c.c.ContactURNID }
+func (c *ChannelConnection) ChannelID() ChannelID    { return c.c.ChannelID }
+func (c *ChannelConnection) StartID() StartID        { return c.c.StartID }
+func (c *ChannelConnection) AnsweredBy() null.String { return c.c.AnsweredBy }
 
 func (c *ChannelConnection) ErrorReason() ConnectionError { return ConnectionError(c.c.ErrorReason) }
 func (c *ChannelConnection) ErrorCount() int              { return c.c.ErrorCount }
@@ -251,7 +253,8 @@ SELECT
 	cc.contact_id as contact_id, 
 	cc.contact_urn_id as contact_urn_id, 
 	cc.org_id as org_id, 
-	fsc.flowstart_id as start_id
+	fsc.flowstart_id as start_id,
+	cc.answered_by as answered_by
 FROM
 	channels_channelconnection as cc
 	LEFT OUTER JOIN flows_flowstart_connections fsc ON cc.id = fsc.channelconnection_id
@@ -461,6 +464,23 @@ func (c *ChannelConnection) UpdateStatus(ctx context.Context, db Queryer, status
 
 	if err != nil {
 		return errors.Wrapf(err, "error updating status for channel connection: %d", c.c.ID)
+	}
+
+	return nil
+}
+
+// UpdateAnsweredBy updates the status for this connection
+func (c *ChannelConnection) UpdateAnsweredBy(ctx context.Context, db Queryer, answeredBy null.String) error {
+	c.c.AnsweredBy = answeredBy
+	var err error
+
+	_, err = db.ExecContext(ctx,
+		`UPDATE channels_channelconnection SET answered_by = $2, modified_on = NOW() WHERE id = $1`,
+		c.c.ID, c.c.AnsweredBy,
+	)
+
+	if err != nil {
+		return errors.Wrapf(err, "error updating answered_by for channel connection id: %d", c.c.ID)
 	}
 
 	return nil

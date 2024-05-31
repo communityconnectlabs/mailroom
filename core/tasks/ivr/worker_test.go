@@ -135,3 +135,11 @@ func (c *MockProvider) URNForRequest(r *http.Request) (urns.URN, error) {
 func (c *MockProvider) CallIDForRequest(r *http.Request) (string, error) {
 	return "", nil
 }
+
+func (c *MockProvider) ProcessAnsweredBy(ctx context.Context, rt *runtime.Runtime, r *http.Request, conn *models.ChannelConnection) error {
+	return nil
+}
+
+func (c *MockProvider) GetAnsweredBy(ctx context.Context, rt *runtime.Runtime, conn *models.ChannelConnection) (string, error) {
+	return "", nil
+}
