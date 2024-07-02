@@ -213,6 +213,11 @@ func RequestCallStart(ctx context.Context, rt *runtime.Runtime, oa *models.OrgAs
 		return nil, errors.Wrapf(err, "error creating ivr session")
 	}
 
+	err = contact.UpdatePreferredURN(ctx, rt.DB, oa, models.URNID(urnID), channel)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error updating preferred channel")
+	}
+
 	return conn, RequestCallStartForConnection(ctx, rt, channel, telURN, conn, false)
 }
 
