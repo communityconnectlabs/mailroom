@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/nyaruka/null"
 	"io"
 	"math/rand"
 	"net/http"
@@ -60,6 +61,9 @@ const (
 	privateKeyConfig = "nexmo_app_private_key"
 
 	statusFailed = "failed"
+
+	answeredByHuman   = "H"
+	answeredByMachine = "M"
 )
 
 var indentMarshal = true
@@ -117,7 +121,10 @@ func (s *service) CallIDForRequest(r *http.Request) (string, error) {
 	}
 	callID, err := jsonparser.GetString(body, "uuid")
 	if err != nil {
-		return "", errors.Errorf("invalid json body")
+		callID, err = jsonparser.GetString(body, "call_uuid")
+		if err != nil {
+			return "", errors.Errorf("invalid json body")
+		}
 	}
 
 	if callID == "" {
@@ -171,6 +178,40 @@ func (s *service) CheckStartRequest(r *http.Request) models.ConnectionError {
 	return ""
 }
 
+func (s *service) ProcessAnsweredBy(ctx context.Context, rt *runtime.Runtime, r *http.Request, conn *models.ChannelConnection) error {
+	body, _ := readBody(r)
+	if len(body) == 0 {
+		return nil
+	}
+
+	nxStatus, _ := jsonparser.GetString(body, "status")
+
+	// our status (answered by human or machine)
+	if nxStatus == "human" || nxStatus == "machine" {
+		answeredByMap := map[string]string{
+			"human":   answeredByHuman,
+			"machine": answeredByMachine,
+		}
+		err := conn.UpdateAnsweredBy(ctx, rt.DB, null.String(answeredByMap[nxStatus]))
+		if err != nil {
+			logrus.WithError(err).WithField("http_request", r).Error("error while updating answered_by")
+		}
+	}
+
+	return nil
+}
+
+func (s *service) GetAnsweredBy(ctx context.Context, rt *runtime.Runtime, conn *models.ChannelConnection) (string, error) {
+	answeredByMap := map[string]string{
+		answeredByHuman:   "human",
+		answeredByMachine: "machine",
+	}
+	if conn.AnsweredBy() != "" {
+		return answeredByMap[string(conn.AnsweredBy())], nil
+	}
+	return "", nil
+}
+
 func (s *service) PreprocessStatus(ctx context.Context, rt *runtime.Runtime, r *http.Request) ([]byte, error) {
 	// parse out the call status, we are looking for a leg of one of our conferences ending in the "forward" case
 	// get our recording url out
@@ -191,6 +232,9 @@ func (s *service) PreprocessStatus(ctx context.Context, rt *runtime.Runtime, r *
 
 	// grab our uuid out
 	legUUID, _ := jsonparser.GetString(body, "uuid")
+	if legUUID == "" {
+		legUUID, _ = jsonparser.GetString(body, "call_uuid")
+	}
 
 	// and our status
 	nxStatus, _ := jsonparser.GetString(body, "status")
@@ -377,6 +421,12 @@ func (s *service) RequestCall(number urns.URN, resumeURL string, statusURL strin
 	}
 
 	if machineDetection {
+		callR.AdvancedMachineDetection = AdvancedMachineDetection{
+			Behavior:    "continue",
+			Mode:        "detect",
+			BeepTimeout: 45,
+		}
+	} else {
 		callR.MachineDetection = "hangup" // if an answering machine answers, just hangup
 	}
 
@@ -537,7 +587,7 @@ func (s *service) StatusForRequest(r *http.Request) (models.ConnectionStatus, mo
 	case "started", "ringing":
 		return models.ConnectionStatusWired, "", 0
 
-	case "answered":
+	case "answered", "human", "machine":
 		return models.ConnectionStatusInProgress, "", 0
 
 	case "completed":
@@ -548,8 +598,6 @@ func (s *service) StatusForRequest(r *http.Request) (models.ConnectionStatus, mo
 		return models.ConnectionStatusErrored, models.ConnectionErrorBusy, 0
 	case "rejected", "unanswered", "timeout":
 		return models.ConnectionStatusErrored, models.ConnectionErrorNoAnswer, 0
-	case "machine":
-		return models.ConnectionStatusErrored, models.ConnectionErrorMachine, 0
 	case "failed":
 		return models.ConnectionStatusErrored, models.ConnectionErrorProvider, 0
 

@@ -13,6 +13,12 @@ type NCCO struct {
 	Name   string `json:"name"`
 }
 
+type AdvancedMachineDetection struct {
+	Behavior    string `json:"behavior"`
+	Mode        string `json:"mode"`
+	BeepTimeout int    `json:"beep_timeout"`
+}
+
 // CallRequest is the request payload to create a new call, see https://developer.nexmo.com/api/voice#createCall
 type CallRequest struct {
 	To           []Phone  `json:"to"`
@@ -22,9 +28,10 @@ type CallRequest struct {
 	EventURL     []string `json:"event_url"`
 	EventMethod  string   `json:"event_method"`
 
-	NCCO             []NCCO `json:"ncco,omitempty"`
-	MachineDetection string `json:"machine_detection"`
-	RingingTimer     int    `json:"ringing_timer,omitempty"`
+	NCCO                     []NCCO                   `json:"ncco,omitempty"`
+	MachineDetection         string                   `json:"machine_detection,omitempty"`
+	AdvancedMachineDetection AdvancedMachineDetection `json:"advanced_machine_detection"`
+	RingingTimer             int                      `json:"ringing_timer,omitempty"`
 }
 
 // CallResponse is the response from creating a new call

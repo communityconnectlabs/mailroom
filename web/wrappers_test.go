@@ -2,7 +2,6 @@ package web_test
 
 import (
 	"context"
-	"fmt"
 	"github.com/jmoiron/sqlx"
 	"net/http"
 	"testing"
@@ -100,7 +99,6 @@ func TestRequireUserToken(t *testing.T) {
 
 func getMockHandler() web.JSONHandler {
 	return func(ctx context.Context, rt *runtime.Runtime, r *http.Request) (interface{}, int, error) {
-		fmt.Println(ctx.Value("user_id"))
 		return ctx.Value("user_id"), 200, nil
 	}
 }

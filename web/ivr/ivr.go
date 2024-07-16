@@ -27,6 +27,7 @@ func init() {
 	web.RegisterRoute(http.MethodPost, "/mr/ivr/c/{uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}}/handle", newIVRHandler(handleFlow))
 	web.RegisterRoute(http.MethodPost, "/mr/ivr/c/{uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}}/status", newIVRHandler(handleStatus))
 	web.RegisterRoute(http.MethodPost, "/mr/ivr/c/{uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}}/incoming", newIVRHandler(handleIncomingCall))
+	web.RegisterJSONRoute(http.MethodGet, "/mr/ivr/c/{uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}}/voice-call-status", web.WithHTTPLogs(handleVoiceStatusCall))
 }
 
 type ivrHandlerFn func(ctx context.Context, rt *runtime.Runtime, r *http.Request, w http.ResponseWriter) (*models.Channel, *models.ChannelConnection, error)
@@ -383,6 +384,13 @@ func handleStatus(ctx context.Context, rt *runtime.Runtime, r *http.Request, w h
 		return channel, nil, provider.WriteErrorResponse(w, errors.Wrapf(err, "unable to load channel connection with id: %s", externalID))
 	}
 
+	err = provider.ProcessAnsweredBy(ctx, rt, r, conn)
+
+	// had an error on process answered by? log it and continue
+	if err != nil {
+		logrus.WithError(err).WithField("http_request", r).Error("error while handling answered_by")
+	}
+
 	err = ivr.HandleIVRStatus(ctx, rt, oa, provider, conn, r, w)
 
 	// had an error? mark our connection as errored and log it
@@ -392,4 +400,93 @@ func handleStatus(ctx context.Context, rt *runtime.Runtime, r *http.Request, w h
 	}
 
 	return channel, conn, nil
+}
+
+// handleVoiceStatusCall handles the voice status call to the provider API
+func handleVoiceStatusCall(ctx context.Context, rt *runtime.Runtime, r *http.Request, l *models.HTTPLogger) (interface{}, int, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*55)
+	defer cancel()
+
+	channelUUID := assets.ChannelUUID(chi.URLParam(r, "uuid"))
+	externalID := r.URL.Query().Get("external_id")
+	if externalID == "" {
+		return map[string]string{
+			"result":      "failure",
+			"message":     "external_id not provided",
+			"answered_by": "",
+		}, http.StatusBadRequest, nil
+	}
+
+	// load the org id for this UUID (we could load the entire channel here but we want to take the same paths through everything else)
+	orgID, err := models.OrgIDForChannelUUID(ctx, rt.DB, channelUUID)
+	if err != nil {
+		return map[string]string{
+			"result":      "failure",
+			"message":     "org not found",
+			"answered_by": "",
+		}, http.StatusNotFound, nil
+	}
+
+	// load our org assets
+	oa, err := models.GetOrgAssets(ctx, rt, orgID)
+	if err != nil {
+		return map[string]string{
+			"result":      "failure",
+			"message":     "not able to load org assets",
+			"answered_by": "",
+		}, http.StatusInternalServerError, nil
+	}
+
+	// and our channel
+	channel := oa.ChannelByUUID(channelUUID)
+	if channel == nil {
+		return map[string]string{
+			"result":      "failure",
+			"message":     fmt.Sprintf("no active channel with uuid %s", channelUUID),
+			"answered_by": "",
+		}, http.StatusNotFound, nil
+	}
+
+	// get the right kind of provider
+	provider, err := ivr.GetService(channel)
+	if provider == nil {
+		return map[string]string{
+			"result":      "failure",
+			"message":     fmt.Sprintf("unable to load client for channel: %s", channelUUID),
+			"answered_by": "",
+		}, http.StatusInternalServerError, nil
+	}
+
+	// load our connection
+	conn, err := models.SelectChannelConnectionByExternalID(ctx, rt.DB, channel.ID(), models.ConnectionTypeIVR, externalID)
+	if errors.Cause(err) == sql.ErrNoRows {
+		return map[string]string{
+			"result":      "failure",
+			"message":     fmt.Sprintf("unknown connection for: %s", externalID),
+			"answered_by": "",
+		}, http.StatusNotFound, nil
+	}
+	if err != nil {
+		return map[string]string{
+			"result":      "failure",
+			"message":     fmt.Sprintf("\"unable to load channel connection with id: %s", externalID),
+			"answered_by": "",
+		}, http.StatusNotFound, nil
+	}
+
+	answeredBy, err := provider.GetAnsweredBy(ctx, rt, conn)
+
+	if err != nil {
+		return map[string]string{
+			"result":      "failure",
+			"message":     fmt.Sprintf("unable to get answered by status from %s", externalID),
+			"answered_by": "",
+		}, http.StatusNotFound, nil
+	}
+
+	return map[string]string{
+		"result":      "success",
+		"message":     "",
+		"answered_by": answeredBy,
+	}, http.StatusOK, nil
 }

@@ -451,7 +451,7 @@ func TestVonageIVR(t *testing.T) {
 					"action": "input",
 					"eventMethod": "POST",
 					"eventUrl": [
-						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=1&urn=tel%3A%2B16055741111%3Fid%3D10000%26priority%3D1000&wait_type=gather&sig=KqiNYjpUMvqtJLX3Pi9tmL03XVk%3D"
+						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=1&urn=tel%3A%2B16055741111%3Fchannel%3D19012bfd-3ce3-4cae-9bb9-76cf92c73d49%26id%3D10000%26priority%3D1000&wait_type=gather&sig=GPMOtU0T0cJb0JFlCusCeUAteSQ%3D"
 					],
 					"maxDigits": 1,
 					"submitOnHash": true,
@@ -543,7 +543,7 @@ func TestVonageIVR(t *testing.T) {
 					"action": "input",
 					"eventMethod": "POST",
 					"eventUrl": [
-						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=2&urn=tel%3A%2B16055743333%3Fid%3D10002%26priority%3D1000&wait_type=gather&sig=QbU8c2ChHdJln%2BE5wUi%2BR6mF0nY%3D"
+						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=2&urn=tel%3A%2B16055743333%3Fchannel%3D19012bfd-3ce3-4cae-9bb9-76cf92c73d49%26id%3D10002%26priority%3D1000&wait_type=gather&sig=QgipYno2IfW3VEKfzYZp8I1VFbE%3D"
 					],
 					"maxDigits": 1,
 					"submitOnHash": true,
@@ -566,7 +566,7 @@ func TestVonageIVR(t *testing.T) {
 					"action": "input",
 					"eventMethod": "POST",
 					"eventUrl": [
-						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=2&urn=tel%3A%2B16055743333%3Fid%3D10002%26priority%3D1000&wait_type=gather&sig=QbU8c2ChHdJln%2BE5wUi%2BR6mF0nY%3D"
+						"https://localhost:8090/mr/ivr/c/19012bfd-3ce3-4cae-9bb9-76cf92c73d49/handle?action=resume&connection=2&urn=tel%3A%2B16055743333%3Fchannel%3D19012bfd-3ce3-4cae-9bb9-76cf92c73d49%26id%3D10002%26priority%3D1000&wait_type=gather&sig=QgipYno2IfW3VEKfzYZp8I1VFbE%3D"
 					],
 					"maxDigits": 20,
 					"submitOnHash": true,
