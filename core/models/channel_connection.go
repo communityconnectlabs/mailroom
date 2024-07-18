@@ -110,9 +110,8 @@ func (c *ChannelConnection) ErrorReason() ConnectionError { return ConnectionErr
 func (c *ChannelConnection) ErrorCount() int              { return c.c.ErrorCount }
 func (c *ChannelConnection) NextAttempt() *time.Time      { return c.c.NextAttempt }
 
-const insertConnectionSQL = `
-INSERT INTO
-	channels_channelconnection
+const sqlInsertConnection = `
+INSERT INTO channels_channelconnection
 (
 	created_on,
 	modified_on,
@@ -127,7 +126,6 @@ INSERT INTO
 	contact_urn_id,
 	error_count
 )
-
 VALUES(
 	NOW(),
 	NOW(),
@@ -142,10 +140,7 @@ VALUES(
 	:contact_urn_id,
 	0
 )
-RETURNING
-	id,
-	NOW();
-`
+RETURNING id, NOW();`
 
 // InsertIVRConnection creates a new IVR session for the passed in org, channel and contact, inserting it
 func InsertIVRConnection(ctx context.Context, db *sqlx.DB, orgID OrgID, channelID ChannelID, startID StartID, contactID ContactID, urnID URNID,
@@ -164,7 +159,7 @@ func InsertIVRConnection(ctx context.Context, db *sqlx.DB, orgID OrgID, channelI
 	c.ExternalID = externalID
 	c.StartID = startID
 
-	rows, err := db.NamedQueryContext(ctx, insertConnectionSQL, c)
+	rows, err := db.NamedQueryContext(ctx, sqlInsertConnection, c)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error inserting new channel connection")
 	}
