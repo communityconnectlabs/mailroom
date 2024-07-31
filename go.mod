@@ -4,7 +4,7 @@ go 1.18
 
 replace (
 	github.com/nyaruka/gocommon => github.com/communityconnectlabs/gocommon v1.22.4
-	github.com/nyaruka/goflow => github.com/communityconnectlabs/goflow v0.152.11
+	github.com/nyaruka/goflow => github.com/communityconnectlabs/goflow v0.152.12
 )
 
 require (
@@ -46,6 +46,7 @@ require (
 	cloud.google.com/go v0.100.2 // indirect
 	cloud.google.com/go/compute v1.5.0 // indirect
 	cloud.google.com/go/dialogflow v1.8.1 // indirect
+	github.com/Shopify/gomail v0.0.0-20220314142144-6897a5a5ba29 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220527190237-ee62e23da966 // indirect
 	github.com/blevesearch/segment v0.9.0 // indirect
 	github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d // indirect
@@ -53,7 +54,6 @@ require (
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.0 // indirect
 	github.com/getsentry/raven-go v0.1.2-0.20190125112653-238ebd86338d // indirect
-	github.com/go-mail/mail v2.3.1+incompatible // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -72,6 +72,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
+	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e // indirect
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a // indirect
 	golang.org/x/sys v0.0.0-20220627191245-f75cf1eec38b // indirect
