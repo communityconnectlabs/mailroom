@@ -2,6 +2,7 @@ package amazonconnect
 
 import (
 	"testing"
+	"time"
 
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
@@ -21,7 +22,8 @@ func TestEventCallback(t *testing.T) {
 		testdata.DefaultTopic,
 		"Have you seen my cookies?",
 		"12345",
-		nil,
+		time.Now(),
+		testdata.Agent,
 	)
 
 	web.RunWebTests(t, ctx, rt, "testdata/event_callback.json", map[string]string{"cathy_ticket_uuid": string(ticket.UUID)})

@@ -2,6 +2,8 @@ package starts
 
 import (
 	"encoding/json"
+	"github.com/nyaruka/gocommon/uuids"
+	"net/http"
 	"testing"
 	"time"
 
@@ -13,9 +15,9 @@ import (
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 
+	_ "github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/olivere/elastic/v7"
 )
 
 func TestStarts(t *testing.T) {
