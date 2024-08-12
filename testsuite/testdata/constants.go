@@ -45,7 +45,7 @@ var TestersGroup = &Group{10001, "5e9d8fab-5e7e-4f51-b533-261af5dea70d"}
 var ReportingLabel = &Label{10000, "ebc4dedc-91c4-4ed4-9dd6-daa05ea82698"}
 var TestingLabel = &Label{10001, "a6338cdc-7938-4437-8b05-2d5d785e3a08"}
 
-var DefaultTopic = &Topic{1, "5cc1848a-357c-4de9-9720-45770ec18d11"}
+var DefaultTopic = &Topic{1, "20853994-1b62-440b-a28e-03454bad0ad3"}
 var SalesTopic = &Topic{2, "9ef2ff21-064a-41f1-8560-ccc990b4f937"}
 var SupportTopic = &Topic{3, "0a8f2e00-fef6-402c-bd79-d789446ec0e0"}
 
