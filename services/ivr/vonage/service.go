@@ -613,6 +613,11 @@ func (s *service) ValidateRequestSignature(r *http.Request) error {
 		return nil
 	}
 
+	// skip signature validation if request from the flow analyzer
+	if r.URL.Query().Get("action") == "transcription_status" {
+		return nil
+	}
+
 	// only validate handling calls, we can't verify others
 	if !strings.HasSuffix(r.URL.Path, "handle") {
 		return nil

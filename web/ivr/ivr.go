@@ -187,6 +187,9 @@ const (
 	actionStart  = "start"
 	actionResume = "resume"
 	actionStatus = "status"
+
+	// separate action related to the flow analyzer
+	actionTranscriptionStatus = "transcription_status"
 )
 
 // IVRRequest is our form for what fields we expect in IVR callbacks
@@ -304,6 +307,13 @@ func handleFlow(ctx context.Context, rt *runtime.Runtime, r *http.Request, w htt
 	case actionStatus:
 		err = ivr.HandleIVRStatus(
 			ctx, rt, oa, provider, conn,
+			r, w,
+		)
+
+	case actionTranscriptionStatus:
+		err = ivr.HandleIVRTranscriptionStatus(
+			ctx, rt, oa, provider,
+			channel, conn, contacts[0], urn,
 			r, w,
 		)
 

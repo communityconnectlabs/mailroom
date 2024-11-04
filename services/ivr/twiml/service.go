@@ -335,6 +335,11 @@ func (s *service) ValidateRequestSignature(r *http.Request) error {
 		return nil
 	}
 
+	// skip signature validation if request from the flow analyzer
+	if r.URL.Query().Get("action") == "transcription_status" {
+		return nil
+	}
+
 	actual := r.Header.Get(signatureHeader)
 	if actual == "" {
 		return errors.Errorf("missing request signature header")

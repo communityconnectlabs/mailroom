@@ -704,3 +704,26 @@ func HandleIVRStatus(ctx context.Context, rt *runtime.Runtime, oa *models.OrgAss
 
 	return svc.WriteEmptyResponse(w, fmt.Sprintf("status updated: %s", status))
 }
+
+// HandleIVRTranscriptionStatus is called on status callbacks for an IVR call. We let the service decide whether the call has
+// ended for some reason and update the state of the call and session if so
+func HandleIVRTranscriptionStatus(ctx context.Context, rt *runtime.Runtime, oa *models.OrgAssets, svc Service, channel *models.Channel, conn *models.ChannelConnection, c *models.Contact, urn urns.URN, r *http.Request, w http.ResponseWriter) error {
+	contact, err := c.FlowContact(oa)
+	if err != nil {
+		return errors.Wrapf(err, "error creating flow contact")
+	}
+
+	session, err := models.FindWaitingSessionForContact(ctx, rt.DB, rt.SessionStorage, oa, models.FlowTypeVoice, contact)
+	if err != nil {
+		return errors.Wrapf(err, "error loading session for contact")
+	}
+
+	if session == nil {
+		return HandleAsFailure(ctx, rt.DB, svc, conn, w, errors.Errorf("no active IVR session for contact"))
+	}
+
+	// todo: add changes to save the transcription completed events
+	fmt.Println("---> %s", session.Output())
+
+	return svc.WriteEmptyResponse(w, fmt.Sprintf("transcription updated: %s", ""))
+}
