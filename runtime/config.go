@@ -79,6 +79,7 @@ type Config struct {
 
 	AmazonConnectAuthToken string `help:"the authorization token used to make successfully HTTP calls to Amazon Connect lambda functions"`
 
+	IVRTranscriptionUrl string `help:"the url for IVR massage transcription related which sends the result in callback"`
 }
 
 // NewDefaultConfig returns a new default configuration object
@@ -127,10 +128,10 @@ func NewDefaultConfig() *Config {
 		AWSAccessKeyID:     "",
 		AWSSecretAccessKey: "",
 
-        InstanceName: hostname,
-		LogLevel: "error",
-		UUIDSeed: 0,
-		Version:  "Dev",
+		InstanceName: hostname,
+		LogLevel:     "error",
+		UUIDSeed:     0,
+		Version:      "Dev",
 
 		UrlshHost:  "",
 		UrlshToken: "",

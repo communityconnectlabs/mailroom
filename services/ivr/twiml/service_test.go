@@ -18,14 +18,15 @@ import (
 	"github.com/nyaruka/mailroom/services/ivr/twiml"
 	"github.com/nyaruka/mailroom/testsuite"
 
-	"github.com/nyaruka/goflow/flows"
-	"github.com/stretchr/testify/assert"
 	"net/url"
-	"github.com/nyaruka/mailroom/core/ivr"
+
 	"github.com/nyaruka/gocommon/httpx"
-	"github.com/nyaruka/mailroom/testsuite/testdata"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/runtime"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestResponseForSprint(t *testing.T) {
@@ -112,7 +113,7 @@ func TestResponseForSprint(t *testing.T) {
 	}
 
 	for i, tc := range tcs {
-		response, err := twiml.ResponseForSprint(rt.Config, urn, resumeURL, tc.events, false)
+		response, err := twiml.ResponseForSprint(rt.Config, urn, resumeURL, tc.events, false, nil)
 		assert.NoError(t, err, "%d: unexpected error")
 		assert.Equal(t, xml.Header+tc.expected, response, "%d: unexpected response", i)
 	}

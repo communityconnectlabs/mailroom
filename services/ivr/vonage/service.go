@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/nyaruka/null"
 	"io"
 	"math/rand"
 	"net/http"
@@ -30,6 +29,7 @@ import (
 	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/runtime"
+	"github.com/nyaruka/null"
 
 	"github.com/buger/jsonparser"
 	"github.com/golang-jwt/jwt"
@@ -75,6 +75,8 @@ type service struct {
 	appID      string
 	privateKey *rsa.PrivateKey
 }
+
+type ivrCallbackFunc = func(string) error
 
 func init() {
 	ivr.RegisterServiceType(vonageChannelType, NewServiceFromChannel)
@@ -655,8 +657,40 @@ func (s *service) WriteSessionResponse(ctx context.Context, rt *runtime.Runtime,
 		return errors.Errorf("cannot write IVR response for session with no sprint")
 	}
 
+	// callback function for the ivr transcription
+	ivrCallbackTrigger := func(audioUrl string) error {
+		if rt.Config.IVRTranscriptionUrl == "" {
+			return nil
+		}
+
+		// prepare the callback url
+		domain := channel.ConfigValue(models.ChannelConfigCallbackDomain, rt.Config.Domain)
+		form := url.Values{
+			"action":     []string{"transcription_status"},
+			"connection": []string{fmt.Sprintf("%d", conn.ID())},
+			"urn":        []string{number.String()},
+		}
+		callbackUrl := fmt.Sprintf("https://%s/mr/ivr/c/%s/handle?%s", domain, channel.UUID(), form.Encode())
+
+		// prepare the request
+		form = url.Values{
+			"audio_url":             []string{audioUrl},
+			"response_callback_url": []string{callbackUrl},
+		}
+
+		client := &http.Client{}
+		req, err := http.NewRequest(http.MethodPost, rt.Config.IVRTranscriptionUrl, strings.NewReader(form.Encode()))
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		_, err = client.Do(req)
+		return err
+	}
+
 	// get our response
-	response, err := s.responseForSprint(ctx, rt.RP, channel, conn, resumeURL, sprint.Events())
+	response, err := s.responseForSprint(ctx, rt.RP, channel, conn, resumeURL, sprint.Events(), ivrCallbackTrigger)
 	if err != nil {
 		return errors.Wrap(err, "unable to build response for IVR call")
 	}
@@ -780,7 +814,7 @@ func (s *service) generateToken() (string, error) {
 
 // NCCO building utilities
 
-func (s *service) responseForSprint(ctx context.Context, rp *redis.Pool, channel *models.Channel, conn *models.ChannelConnection, resumeURL string, es []flows.Event) (string, error) {
+func (s *service) responseForSprint(ctx context.Context, rp *redis.Pool, channel *models.Channel, conn *models.ChannelConnection, resumeURL string, es []flows.Event, ivrCallback ivrCallbackFunc) (string, error) {
 	actions := make([]interface{}, 0, 1)
 	waitActions := make([]interface{}, 0, 1)
 
@@ -926,6 +960,9 @@ func (s *service) responseForSprint(ctx context.Context, rp *redis.Pool, channel
 						Action:    "stream",
 						StreamURL: []string{a.URL()},
 					})
+					if ivrCallback != nil {
+						ivrCallback(a.URL())
+					}
 				}
 			}
 		}

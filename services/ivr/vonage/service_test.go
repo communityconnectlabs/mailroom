@@ -125,7 +125,7 @@ func TestResponseForSprint(t *testing.T) {
 	}
 
 	for i, tc := range tcs {
-		response, err := provider.responseForSprint(ctx, rp, channel, conn, resumeURL, tc.events)
+		response, err := provider.responseForSprint(ctx, rp, channel, conn, resumeURL, tc.events, nil)
 		assert.NoError(t, err, "%d: unexpected error")
 		assert.Equal(t, tc.expected, response, "%d: unexpected response", i)
 	}

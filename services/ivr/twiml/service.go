@@ -113,6 +113,8 @@ type service struct {
 	validateSigs bool
 }
 
+type ivrCallbackFunc = func(string) error
+
 func init() {
 	ivr.RegisterServiceType(twimlChannelType, NewServiceFromChannel)
 	ivr.RegisterServiceType(twilioChannelType, NewServiceFromChannel)
@@ -380,8 +382,40 @@ func (s *service) WriteSessionResponse(ctx context.Context, rt *runtime.Runtime,
 		return errors.Errorf("cannot write IVR response for session with no sprint")
 	}
 
+	// callback function for the ivr transcription
+	ivrCallbackTrigger := func(audioUrl string) error {
+		if rt.Config.IVRTranscriptionUrl == "" {
+			return nil
+		}
+
+		// prepare the callback url
+		domain := channel.ConfigValue(models.ChannelConfigCallbackDomain, rt.Config.Domain)
+		form := url.Values{
+			"action":     []string{"transcription_status"},
+			"connection": []string{fmt.Sprintf("%d", conn.ID())},
+			"urn":        []string{number.String()},
+		}
+		callbackUrl := fmt.Sprintf("https://%s/mr/ivr/c/%s/handle?%s", domain, channel.UUID(), form.Encode())
+
+		// prepare the request
+		form = url.Values{
+			"audio_url":             []string{audioUrl},
+			"response_callback_url": []string{callbackUrl},
+		}
+
+		client := &http.Client{}
+		req, err := http.NewRequest(http.MethodPost, rt.Config.IVRTranscriptionUrl, strings.NewReader(form.Encode()))
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		_, err = client.Do(req)
+		return err
+	}
+
 	// get our response
-	response, err := ResponseForSprint(rt.Config, number, resumeURL, sprint.Events(), true)
+	response, err := ResponseForSprint(rt.Config, number, resumeURL, sprint.Events(), true, ivrCallbackTrigger)
 	if err != nil {
 		return errors.Wrap(err, "unable to build response for IVR call")
 	}
@@ -510,7 +544,7 @@ func TwCalculateSignature(url string, form url.Values, authToken string) ([]byte
 
 // TWIML building utilities
 
-func ResponseForSprint(cfg *runtime.Config, number urns.URN, resumeURL string, es []flows.Event, indent bool) (string, error) {
+func ResponseForSprint(cfg *runtime.Config, number urns.URN, resumeURL string, es []flows.Event, indent bool, ivrCallback ivrCallbackFunc) (string, error) {
 	r := &Response{}
 	commands := make([]interface{}, 0)
 	hasWait := false
@@ -538,6 +572,9 @@ func ResponseForSprint(cfg *runtime.Config, number urns.URN, resumeURL string, e
 				for _, a := range event.Msg.Attachments() {
 					a = models.NormalizeAttachment(cfg, a)
 					commands = append(commands, Play{URL: a.URL()})
+					if ivrCallback != nil {
+						ivrCallback(a.URL())
+					}
 				}
 			}
 
