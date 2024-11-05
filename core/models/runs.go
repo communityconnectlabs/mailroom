@@ -375,3 +375,10 @@ func NewEmptyRun(ctx context.Context, db Queryer, contactID flows.ContactID, flo
 
 	return nil
 }
+
+func UpdateFlowRunEventsTranscription(ctx context.Context, db Queryer, startID StartID, contactID ContactID, stepUUID uuids.UUID, transcription string) error {
+	_, err := db.ExecContext(ctx, `
+UPDATE flows_flowrun SET events = (SELECT jsonb_agg(CASE WHEN evt->>'step_uuid' = $3 THEN jsonb_set(evt, '{transcript}', to_jsonb($4::text), true) ELSE evt END) FROM jsonb_array_elements(events) AS evt)
+WHERE start_id = $1 and contact_id = $2;`, startID, contactID, stepUUID, transcription)
+	return err
+}
