@@ -113,7 +113,7 @@ type service struct {
 	validateSigs bool
 }
 
-type ivrCallbackFunc = func(string) error
+type ivrCallbackFunc = func(string, string) error
 
 func init() {
 	ivr.RegisterServiceType(twimlChannelType, NewServiceFromChannel)
@@ -383,7 +383,7 @@ func (s *service) WriteSessionResponse(ctx context.Context, rt *runtime.Runtime,
 	}
 
 	// callback function for the ivr transcription
-	ivrCallbackTrigger := func(audioUrl string) error {
+	ivrCallbackTrigger := func(stepUUID string, audioUrl string) error {
 		if rt.Config.IVRTranscriptionUrl == "" {
 			return nil
 		}
@@ -393,6 +393,9 @@ func (s *service) WriteSessionResponse(ctx context.Context, rt *runtime.Runtime,
 		form := url.Values{
 			"action":     []string{"transcription_status"},
 			"connection": []string{fmt.Sprintf("%d", conn.ID())},
+			"start":      []string{fmt.Sprintf("%d", conn.StartID())},
+			"contact":    []string{fmt.Sprintf("%d", conn.ContactID())},
+			"step":       []string{stepUUID},
 			"urn":        []string{number.String()},
 		}
 		callbackUrl := fmt.Sprintf("https://%s/mr/ivr/c/%s/handle?%s", domain, channel.UUID(), form.Encode())
@@ -573,7 +576,7 @@ func ResponseForSprint(cfg *runtime.Config, number urns.URN, resumeURL string, e
 					a = models.NormalizeAttachment(cfg, a)
 					commands = append(commands, Play{URL: a.URL()})
 					if ivrCallback != nil {
-						ivrCallback(a.URL())
+						_ = ivrCallback(string(event.StepUUID()), a.URL())
 					}
 				}
 			}
