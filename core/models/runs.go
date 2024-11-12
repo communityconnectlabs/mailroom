@@ -106,6 +106,7 @@ type Step struct {
 var keptEvents = map[string]bool{
 	events.TypeMsgCreated:  true,
 	events.TypeMsgReceived: true,
+	events.TypeIVRCreated:  true,
 }
 
 const sqlInsertRun = `
