@@ -19,7 +19,7 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/jmoiron/sqlx"
 	"github.com/nfnt/resize"
-    "github.com/nyaruka/gocommon/dbutil"
+	"github.com/nyaruka/gocommon/dbutil"
 	"github.com/nyaruka/gocommon/storage"
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/goflow/excellent/types"
@@ -596,6 +596,10 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s
 	// stopped contact? they are unstopped if they send us an incoming message
 	newContact := event.NewContact
 	if modelContact.Status() == models.ContactStatusStopped {
+		if strings.Contains(rt.Config.OptBackInKeywords, strings.ToUpper(event.Text)) {
+			fmt.Println(">>>>> Contains OPT BACK IN")
+		}
+
 		err := modelContact.Unstop(ctx, rt.DB)
 		if err != nil {
 			return errors.Wrapf(err, "error unstopping contact")

@@ -79,6 +79,7 @@ type Config struct {
 
 	AmazonConnectAuthToken string `help:"the authorization token used to make successfully HTTP calls to Amazon Connect lambda functions"`
 
+	OptBackInKeywords string `help:"the keywords separate by space that allow the contact to opt back in"`
 }
 
 // NewDefaultConfig returns a new default configuration object
@@ -127,15 +128,17 @@ func NewDefaultConfig() *Config {
 		AWSAccessKeyID:     "",
 		AWSSecretAccessKey: "",
 
-        InstanceName: hostname,
-		LogLevel: "error",
-		UUIDSeed: 0,
-		Version:  "Dev",
+		InstanceName: hostname,
+		LogLevel:     "error",
+		UUIDSeed:     0,
+		Version:      "Dev",
 
 		UrlshHost:  "",
 		UrlshToken: "",
 
 		AmazonConnectAuthToken: "12345",
+
+		OptBackInKeywords: "REJOIN START",
 	}
 }
 
