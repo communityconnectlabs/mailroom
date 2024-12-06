@@ -597,30 +597,28 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s
 	newContact := event.NewContact
 	if modelContact.Status() == models.ContactStatusStopped {
 		if strings.Contains(rt.Config.OptBackInKeywords, strings.ToUpper(event.Text)) {
-			fmt.Println(">>>>> Contains OPT BACK IN")
-		}
+			err := modelContact.Unstop(ctx, rt.DB)
+			if err != nil {
+				return errors.Wrapf(err, "error unstopping contact")
+			}
 
-		err := modelContact.Unstop(ctx, rt.DB)
-		if err != nil {
-			return errors.Wrapf(err, "error unstopping contact")
-		}
+			err = models.AddContactToOptOutedGroups(ctx, rt, event.OrgID, modelContact.ID())
+			if err != nil {
+				return errors.Wrapf(err, "error adding contact to groups")
+			}
 
-		err = models.AddContactToOptOutedGroups(ctx, rt, event.OrgID, modelContact.ID())
-		if err != nil {
-			return errors.Wrapf(err, "error adding contact to groups")
-		}
+			newContact = true
 
-		newContact = true
-
-		// reload contact with updated status
-		contacts, err = models.LoadContacts(ctx, rt.ReadonlyDB, oa, []models.ContactID{event.ContactID})
-		if err != nil {
-			return errors.Wrapf(err, "error loading contact")
-		}
-		modelContact = contacts[0]
-		contact, err = modelContact.FlowContact(oa)
-		if err != nil {
-			return errors.Wrapf(err, "error creating flow contact")
+			// reload contact with updated status
+			contacts, err = models.LoadContacts(ctx, rt.ReadonlyDB, oa, []models.ContactID{event.ContactID})
+			if err != nil {
+				return errors.Wrapf(err, "error loading contact")
+			}
+			modelContact = contacts[0]
+			contact, err = modelContact.FlowContact(oa)
+			if err != nil {
+				return errors.Wrapf(err, "error creating flow contact")
+			}
 		}
 	}
 
