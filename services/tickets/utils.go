@@ -88,7 +88,7 @@ func SendReply(ctx context.Context, rt *runtime.Runtime, ticket *models.Ticket, 
 	// upload files to create message attachments
 	attachments := make([]utils.Attachment, len(files))
 	for i, file := range files {
-		filename := string(uuids.New()) + filepath.Ext(file.URL)
+		filename := string(uuids.New()) + GetFileExtention(file)
 
 		attachments[i], err = oa.Org().StoreAttachment(ctx, rt, filename, file.ContentType, file.Body)
 		if err != nil {
@@ -162,4 +162,18 @@ func Close(ctx context.Context, rt *runtime.Runtime, oa *models.OrgAssets, ticke
 func Reopen(ctx context.Context, rt *runtime.Runtime, oa *models.OrgAssets, ticket *models.Ticket, externally bool, l *models.HTTPLogger) error {
 	_, err := models.ReopenTickets(ctx, rt, oa, models.NilUserID, []*models.Ticket{ticket}, externally, l)
 	return err
+}
+
+func GetFileExtention(file *File) string {
+	fileExtention := filepath.Ext(file.URL)
+	if fileExtention != "" {
+		return fileExtention
+	}
+
+	extentions, err := mime.ExtensionsByType(file.ContentType)
+	if err == nil && len(extentions) > 0 {
+		fileExtention = extentions[0]
+	}
+
+	return fileExtention
 }

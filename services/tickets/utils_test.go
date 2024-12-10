@@ -189,3 +189,26 @@ func TestCloseTicket(t *testing.T) {
 	testsuite.AssertContactTasks(t, 1, testdata.Cathy.ID,
 		[]string{`{"type":"ticket_closed","org_id":1,"task":{"id":1,"org_id":1,"contact_id":10000,"ticket_id":1,"event_type":"C","created_on":"2021-06-08T16:40:32Z"},"queued_on":"2021-06-08T16:40:35Z"}`})
 }
+
+func TestGetFileExtention(t *testing.T) {
+	file := &tickets.File{}
+	file.URL = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+	file.ContentType = ""
+	actualFileExtention := tickets.GetFileExtention(file)
+	assert.Equal(t, ".pdf", actualFileExtention)
+
+	file.URL = ""
+	file.ContentType = "application/pdf"
+	actualFileExtention = tickets.GetFileExtention(file)
+	assert.Equal(t, ".pdf", actualFileExtention)
+
+	file.URL = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy"
+	file.ContentType = "application/pdf"
+	actualFileExtention = tickets.GetFileExtention(file)
+	assert.Equal(t, ".pdf", actualFileExtention)
+
+	file.URL = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy"
+	file.ContentType = "application/json"
+	actualFileExtention = tickets.GetFileExtention(file)
+	assert.NotEqual(t, ".pdf", actualFileExtention)
+}
