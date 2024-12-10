@@ -80,6 +80,9 @@ For Trackable Links the follow parameters should be set up as env variable:
 For Spell Checker the follow parameter should be set up as env variable:
 - `MAILROOM_SPELL_CHECKER_KEY`: The Bing Spell Checker API key
 
+Others
+- `MAILROOM_OPT_BACK_IN_KEYWORDS`: By default it's REJOIN START but you can add more separate by space. Once the contact is stopped, they will join back only if they type one of the opt back in keywords.
+
 # Development
 
 Once you've checked out the code, you can build Mailroom with:
