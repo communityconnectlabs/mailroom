@@ -596,7 +596,8 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s
 	// stopped contact? they are unstopped if they send us an incoming message
 	newContact := event.NewContact
 	if modelContact.Status() == models.ContactStatusStopped {
-		if strings.Contains(rt.Config.OptBackInKeywords, strings.ToUpper(event.Text)) {
+		optBackInKeywords := strings.Split(rt.Config.OptBackInKeywords, " ")
+		if utils.StringSliceContains(optBackInKeywords, event.Text, false) {
 			err := modelContact.Unstop(ctx, rt.DB)
 			if err != nil {
 				return errors.Wrapf(err, "error unstopping contact")
