@@ -19,7 +19,7 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/jmoiron/sqlx"
 	"github.com/nfnt/resize"
-    "github.com/nyaruka/gocommon/dbutil"
+	"github.com/nyaruka/gocommon/dbutil"
 	"github.com/nyaruka/gocommon/storage"
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/goflow/excellent/types"
@@ -596,27 +596,29 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s
 	// stopped contact? they are unstopped if they send us an incoming message
 	newContact := event.NewContact
 	if modelContact.Status() == models.ContactStatusStopped {
-		err := modelContact.Unstop(ctx, rt.DB)
-		if err != nil {
-			return errors.Wrapf(err, "error unstopping contact")
-		}
+		if strings.Contains(rt.Config.OptBackInKeywords, strings.ToUpper(event.Text)) {
+			err := modelContact.Unstop(ctx, rt.DB)
+			if err != nil {
+				return errors.Wrapf(err, "error unstopping contact")
+			}
 
-		err = models.AddContactToOptOutedGroups(ctx, rt, event.OrgID, modelContact.ID())
-		if err != nil {
-			return errors.Wrapf(err, "error adding contact to groups")
-		}
+			err = models.AddContactToOptOutedGroups(ctx, rt, event.OrgID, modelContact.ID())
+			if err != nil {
+				return errors.Wrapf(err, "error adding contact to groups")
+			}
 
-		newContact = true
+			newContact = true
 
-		// reload contact with updated status
-		contacts, err = models.LoadContacts(ctx, rt.ReadonlyDB, oa, []models.ContactID{event.ContactID})
-		if err != nil {
-			return errors.Wrapf(err, "error loading contact")
-		}
-		modelContact = contacts[0]
-		contact, err = modelContact.FlowContact(oa)
-		if err != nil {
-			return errors.Wrapf(err, "error creating flow contact")
+			// reload contact with updated status
+			contacts, err = models.LoadContacts(ctx, rt.ReadonlyDB, oa, []models.ContactID{event.ContactID})
+			if err != nil {
+				return errors.Wrapf(err, "error loading contact")
+			}
+			modelContact = contacts[0]
+			contact, err = modelContact.FlowContact(oa)
+			if err != nil {
+				return errors.Wrapf(err, "error creating flow contact")
+			}
 		}
 	}
 
