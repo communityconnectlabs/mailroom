@@ -4,12 +4,11 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
-	"github.com/nyaruka/goflow/flows"
-	"github.com/jmoiron/sqlx"
-	"github.com/lib/pq"
+
 	"github.com/nyaruka/gocommon/jsonx"
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/gocommon/uuids"
+	"github.com/nyaruka/goflow/flows"
 	"github.com/nyaruka/null"
 	"github.com/pkg/errors"
 )
@@ -371,133 +370,4 @@ func (i *StartID) Scan(value interface{}) error {
 func ReadSessionHistory(data []byte) (*flows.SessionHistory, error) {
 	h := &flows.SessionHistory{}
 	return h, jsonx.Unmarshal(data, h)
-}
-
-// StudioFlowStart represents the top level studio flow start in our system
-type StudioFlowStart struct {
-	s struct {
-		ID      StartID    `json:"start_id"   db:"id"`
-		UUID    uuids.UUID `                  db:"uuid"`
-		OrgID   OrgID      `json:"org_id"     db:"org_id"`
-		FlowSID string     `json:"flow_sid"   db:"flow_sid"`
-		Channel string     `json:"channel"    db:"channel"`
-
-		GroupIDs   []GroupID   `json:"group_ids,omitempty"`
-		ContactIDs []ContactID `json:"contact_ids,omitempty"`
-
-		Metadata map[string]interface{} `json:"metadata" db:"metadata"`
-	}
-}
-
-func (s *StudioFlowStart) ID() StartID             { return s.s.ID }
-func (s *StudioFlowStart) OrgID() OrgID            { return s.s.OrgID }
-func (s *StudioFlowStart) FlowSID() string         { return s.s.FlowSID }
-func (s *StudioFlowStart) GroupIDs() []GroupID     { return s.s.GroupIDs }
-func (s *StudioFlowStart) ContactIDs() []ContactID { return s.s.ContactIDs }
-func (s *StudioFlowStart) Channel() string         { return s.s.Channel }
-
-func (s *StudioFlowStart) MarshalJSON() ([]byte, error)    { return json.Marshal(s.s) }
-func (s *StudioFlowStart) UnmarshalJSON(data []byte) error { return json.Unmarshal(data, &s.s) }
-
-const loadContactPhonesSQL = `
-SELECT
-    DISTINCT urns.path
-FROM
-    contacts_contacturn urns
-WHERE
-	scheme='tel' AND
-    urns.contact_id = ANY($1);
-`
-
-func (s *StudioFlowStart) LoadContactPhones(ctx context.Context, db *sqlx.DB, ids []int64) ([]string, error) {
-	rows, err := db.QueryxContext(ctx, loadContactPhonesSQL, pq.Array(ids))
-	if err != nil {
-		return nil, errors.Wrapf(err, "error querying urns for studio flow start: %d", s.ID())
-	}
-	defer rows.Close()
-
-	var path string
-	contactURNs := make([]string, 0)
-	for rows.Next() {
-		err := rows.Scan(&path)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error getting urn")
-		}
-		contactURNs = append(contactURNs, path)
-	}
-	return contactURNs, nil
-}
-
-const selectTwilioConfigSQL = `
-SELECT
-       s.config_json->>'ACCOUNT_SID' as account_sid,
-       s.config_json->>'ACCOUNT_TOKEN' as account_token
-FROM (
-	SELECT 
-		config::json as config_json 
-	FROM orgs_org 
-	WHERE id = $1
-) s;
-`
-
-func (s *StudioFlowStart) LoadTwilioConfig(ctx context.Context, db *sqlx.DB) (string, string, error) {
-	rows, err := db.QueryxContext(ctx, selectTwilioConfigSQL, s.s.OrgID)
-	if err != nil {
-		return "", "", errors.Wrapf(err, "error querying urns for studio flow start: %d", s.ID())
-	}
-	defer rows.Close()
-
-	var accountSID string
-	var accountToken string
-	for rows.Next() {
-		err := rows.Scan(&accountSID, &accountToken)
-		if err != nil {
-			return "", "", errors.Wrapf(err, "error selecting twilio config")
-		}
-	}
-	return accountSID, accountToken, nil
-}
-
-func (s *StudioFlowStart) WithMetadata(metadata map[string]interface{}) *StudioFlowStart {
-	s.s.Metadata = metadata
-	return s
-}
-
-const updateStudioFlowMetadata = `
-UPDATE flows_studioflowstart SET metadata = $2, modified_on = NOW() WHERE id = $1
-`
-
-func (s *StudioFlowStart) UpdateMetadata(ctx context.Context, db *sqlx.DB) error {
-	if encodedMetadata, err := json.Marshal(s.s.Metadata); err == nil {
-		if _, err = db.ExecContext(ctx, updateStudioFlowMetadata, s.ID(), encodedMetadata); err != nil {
-			return errors.Wrapf(err, "error updating metadata")
-		}
-	} else {
-		return errors.Wrapf(err, "error marshaling metadata")
-	}
-	return nil
-}
-
-func (s *StudioFlowStart) MarkStartStarted(ctx context.Context, db *sqlx.DB) error {
-	_, err := db.ExecContext(ctx, "UPDATE flows_studioflowstart SET status = 'S', modified_on = NOW() WHERE id = $1", s.ID())
-	if err != nil {
-		return errors.Wrapf(err, "error setting start as started")
-	}
-	return nil
-}
-
-func (s *StudioFlowStart) MarkStartComplete(ctx context.Context, db *sqlx.DB) error {
-	_, err := db.ExecContext(ctx, "UPDATE flows_studioflowstart SET status = 'C', modified_on = NOW() WHERE id = $1", s.ID())
-	if err != nil {
-		return errors.Wrapf(err, "error setting start as complete")
-	}
-	return nil
-}
-
-func (s *StudioFlowStart) MarkStartFailed(ctx context.Context, db *sqlx.DB) error {
-	_, err := db.ExecContext(ctx, "UPDATE flows_studioflowstart SET status = 'F', modified_on = NOW() WHERE id = $1", s.ID())
-	if err != nil {
-		return errors.Wrapf(err, "error setting start as failed")
-	}
-	return nil
 }

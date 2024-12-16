@@ -53,9 +53,6 @@ const (
 	// StartFlow is our task type to start a flow
 	StartFlow = "start_flow"
 
-	// StartStudioFlow is our task type to start Twilio Studio Flow
-	StartStudioFlow = "start_studio_flow"
-
 	// StartFlowBatch is our task for starting a flow batch
 	StartFlowBatch = "start_flow_batch"
 
