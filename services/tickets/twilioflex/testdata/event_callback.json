@@ -123,7 +123,7 @@
     },
     "db_assertions": [
       {
-        "query": "select count(*) from msgs_msg where direction = 'O' and attachments = '{image/jpeg:https:///_test_media_storage/media/1/6929/26ea/692926ea-09d6-4942-bd38-d266ec8d3716}'",
+        "query": "SELECT count(*) FROM msgs_msg INNER JOIN LATERAL UNNEST(attachments) AS element ON element LIKE '%image/jpeg:https:///_test_media_storage/media/1/6929/26ea/692926ea-09d6-4942-bd38-d266ec8d3716%' WHERE direction = 'O'",
         "count": 1
       }
     ]
