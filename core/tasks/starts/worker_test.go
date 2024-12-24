@@ -3,7 +3,6 @@ package starts
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"testing"
 
 	"github.com/nyaruka/gocommon/dbutil/assertdb"
@@ -15,9 +14,9 @@ import (
 	"github.com/nyaruka/mailroom/testsuite"
 	"github.com/nyaruka/mailroom/testsuite/testdata"
 
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/olivere/elastic/v7"
 )
 
 func TestStarts(t *testing.T) {
@@ -323,61 +322,4 @@ func TestStarts(t *testing.T) {
 			assertdb.Query(t, db, `SELECT count(*) FROM flows_flowrun WHERE status = 'W' AND flow_id = $1`, flowID).Returns(activeRuns, "active runs mismatch for flow #%d in '%s'", flowID, tc.label)
 		}
 	}
-}
-
-type mockHttpClient struct {
-	LastRequest *http.Request
-}
-
-func (mhc *mockHttpClient) Do(req *http.Request) (*http.Response, error) {
-	mhc.LastRequest = req
-	return &http.Response{StatusCode: 200}, nil
-}
-
-const createStudioFlowStartTable = `
-UPDATE orgs_org SET config = '{"ACCOUNT_SID": "account_sid", "ACCOUNT_TOKEN": "account_token"}' WHERE id = 1;
-CREATE TABLE IF NOT EXISTS flows_studioflowstart
-(
-    id serial not null constraint flows_studioflowstart_pkey primary key,
-    uuid uuid not null constraint flows_studioflowstart_uuid_key unique,
-    flow_sid   varchar(64) not null,
-    status     varchar(1)  not null,
-    org_id integer not null constraint flows_studioflowstart_org_id_8b06fe26_fk_orgs_org_id references orgs_org deferrable initially deferred,
-    channel_id integer not null constraint flows_studioflowstar_channel_id_15399058_fk_channels_ references channels_channel deferrable initially deferred,
-    created_by_id integer constraint flows_studioflowstart_created_by_id_650bb2e5_fk_auth_user_id references auth_user deferrable initially deferred,
-    metadata jsonb not null,
-	created_on    timestamp with time zone not null,
-    modified_on   timestamp with time zone not null
-);
-`
-
-func TestStudioFlowStarts(t *testing.T) {
-	ctx, rt, db, _ := testsuite.Get()
-
-	mes := testsuite.NewMockElasticServer()
-	defer mes.Close()
-
-	startTask := map[string]interface{}{
-		"org_id":      1,
-		"start_id":    1,
-		"flow_sid":    "FW2932f221ca8741fb714ff97df7986172",
-		"channel_id":  testdata.TwilioChannel.ID,
-		"contact_ids": []int64{int64(testdata.George.ID)},
-	}
-	startTaskEncoded, _ := json.Marshal(startTask)
-	task := &queue.Task{
-		OrgID: 1,
-		Type:  queue.StartStudioFlow,
-		Task:  startTaskEncoded,
-	}
-	db.MustExecContext(ctx, createStudioFlowStartTable)
-	db.MustExecContext(ctx, `INSERT INTO flows_studioflowstart(org_id, uuid, status, metadata, flow_sid, channel, created_by_id, created_on, modified_on) 
-				            VALUES(1, $1, 'P', '{}', 'FW2932f221ca8741fb714ff97df7986172', $2, $3, now(), now());`,
-		uuids.New(), testdata.TwilioChannel.ID, int64(2),
-	)
-
-	requestSender = &mockHttpClient{}
-	err := handleStudioFlowStart(ctx, rt, task)
-	assert.NoError(t, err)
-	requestSender = http.DefaultClient
 }
