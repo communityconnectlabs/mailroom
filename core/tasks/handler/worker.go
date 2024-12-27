@@ -620,7 +620,7 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s
 			if err != nil {
 				return errors.Wrapf(err, "error creating flow contact")
 			}
-
+		} else {
 			msgIn := flows.NewMsgIn(event.MsgUUID, event.URN, channel.ChannelReference(), event.Text, event.Attachments)
 			msgIn.SetExternalID(string(event.MsgExternalID))
 			msgIn.SetID(event.MsgID)
@@ -630,7 +630,6 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s
 				return errors.Wrapf(err, "error handling inbox message")
 			}
 			return nil
-
 		}
 	}
 
