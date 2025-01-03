@@ -19,7 +19,7 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/jmoiron/sqlx"
 	"github.com/nfnt/resize"
-    "github.com/nyaruka/gocommon/dbutil"
+	"github.com/nyaruka/gocommon/dbutil"
 	"github.com/nyaruka/gocommon/storage"
 	"github.com/nyaruka/gocommon/urns"
 	"github.com/nyaruka/goflow/excellent/types"
@@ -596,27 +596,40 @@ func handleMsgEvent(ctx context.Context, rt *runtime.Runtime, event *MsgEvent, s
 	// stopped contact? they are unstopped if they send us an incoming message
 	newContact := event.NewContact
 	if modelContact.Status() == models.ContactStatusStopped {
-		err := modelContact.Unstop(ctx, rt.DB)
-		if err != nil {
-			return errors.Wrapf(err, "error unstopping contact")
-		}
+		optBackInKeywords := strings.Split(rt.Config.OptBackInKeywords, " ")
+		if utils.StringSliceContains(optBackInKeywords, event.Text, false) {
+			err := modelContact.Unstop(ctx, rt.DB)
+			if err != nil {
+				return errors.Wrapf(err, "error unstopping contact")
+			}
 
-		err = models.AddContactToOptOutedGroups(ctx, rt, event.OrgID, modelContact.ID())
-		if err != nil {
-			return errors.Wrapf(err, "error adding contact to groups")
-		}
+			err = models.AddContactToOptOutedGroups(ctx, rt, event.OrgID, modelContact.ID())
+			if err != nil {
+				return errors.Wrapf(err, "error adding contact to groups")
+			}
 
-		newContact = true
+			newContact = true
 
-		// reload contact with updated status
-		contacts, err = models.LoadContacts(ctx, rt.ReadonlyDB, oa, []models.ContactID{event.ContactID})
-		if err != nil {
-			return errors.Wrapf(err, "error loading contact")
-		}
-		modelContact = contacts[0]
-		contact, err = modelContact.FlowContact(oa)
-		if err != nil {
-			return errors.Wrapf(err, "error creating flow contact")
+			// reload contact with updated status
+			contacts, err = models.LoadContacts(ctx, rt.ReadonlyDB, oa, []models.ContactID{event.ContactID})
+			if err != nil {
+				return errors.Wrapf(err, "error loading contact")
+			}
+			modelContact = contacts[0]
+			contact, err = modelContact.FlowContact(oa)
+			if err != nil {
+				return errors.Wrapf(err, "error creating flow contact")
+			}
+		} else {
+			msgIn := flows.NewMsgIn(event.MsgUUID, event.URN, channel.ChannelReference(), event.Text, event.Attachments)
+			msgIn.SetExternalID(string(event.MsgExternalID))
+			msgIn.SetID(event.MsgID)
+
+			err = handleAsInbox(ctx, rt, oa, contact, msgIn, topupID, nil)
+			if err != nil {
+				return errors.Wrapf(err, "error handling inbox message")
+			}
+			return nil
 		}
 	}
 

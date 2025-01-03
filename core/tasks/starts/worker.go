@@ -3,10 +3,6 @@ package starts
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/nyaruka/goflow/contactql"
@@ -29,7 +25,6 @@ const (
 func init() {
 	mailroom.AddTaskFunction(queue.StartFlow, handleFlowStart)
 	mailroom.AddTaskFunction(queue.StartFlowBatch, handleFlowStartBatch)
-	mailroom.AddTaskFunction(queue.StartStudioFlow, handleStudioFlowStart)
 }
 
 // handleFlowStart creates all the batches of contacts to start in a flow
@@ -232,134 +227,4 @@ func handleFlowStartBatch(ctx context.Context, rt *runtime.Runtime, task *queue.
 	}
 
 	return err
-}
-
-type RequestSender interface {
-	Do(*http.Request) (*http.Response, error)
-}
-
-var requestSender RequestSender = http.DefaultClient
-
-func handleStudioFlowStart(ctx context.Context, rt *runtime.Runtime, task *queue.Task) error {
-	db := rt.DB
-	ctx, cancel := context.WithTimeout(ctx, time.Minute*60)
-	defer cancel()
-
-	startTask := &models.StudioFlowStart{}
-	err := json.Unmarshal(task.Task, startTask)
-	if err != nil {
-		return errors.Wrapf(err, "error unmarshalling studio flow start task: %s", string(task.Task))
-	}
-
-	accountSID, accountToken, err := startTask.LoadTwilioConfig(ctx, db)
-	if err != nil {
-		return errors.Wrapf(err, "error loading studio flow start channel")
-	}
-
-	if accountSID == "" {
-		return errors.Wrapf(err, "missing account sid for %d org", task.OrgID)
-	}
-
-	if accountToken == "" {
-		return errors.Wrapf(err, "missing account auth token for %d org", task.OrgID)
-	}
-
-	contactIDsSet := make(map[models.ContactID]bool)
-	// we are building a set of contact ids, start with the explicit ones
-	for _, id := range startTask.ContactIDs() {
-		contactIDsSet[id] = true
-	}
-
-	// now add all the ids for our groups
-	if len(startTask.GroupIDs()) > 0 {
-		rows, err := db.QueryxContext(ctx, `SELECT contact_id FROM contacts_contactgroup_contacts WHERE contactgroup_id = ANY($1)`, pq.Array(startTask.GroupIDs()))
-		if err != nil {
-			return errors.Wrapf(err, "error selecting contacts for groups")
-		}
-		defer rows.Close()
-
-		var contactID models.ContactID
-		for rows.Next() {
-			err := rows.Scan(&contactID)
-			if err != nil {
-				return errors.Wrapf(err, "error scanning contact id")
-			}
-			contactIDsSet[contactID] = true
-		}
-	}
-
-	// skip if there is no contacts selected
-	if len(contactIDsSet) == 0 {
-		return nil
-	}
-
-	contactIDs := make([]int64, 0, len(contactIDsSet))
-	for contactID := range contactIDsSet {
-		contactIDs = append(contactIDs, int64(contactID))
-	}
-
-	// 80 mps limiting for the twilio
-	chunkSize := 80
-	chunkNumber := 0
-	successCount := 0
-	failureCount := 0
-	totalContactIDs := len(contactIDs)
-	contactIDChunkSelector := func(chunkIndex int) []int64 {
-		start := chunkIndex * chunkSize
-		end := start + chunkSize
-		if start > totalContactIDs {
-			return []int64{}
-		}
-		if end > totalContactIDs {
-			end = totalContactIDs
-		}
-		return contactIDs[start:end]
-	}
-	sendURL := fmt.Sprintf("https://studio.twilio.com/v2/Flows/%s/Executions", startTask.FlowSID())
-	for range time.Tick(1 * time.Second) {
-		contactIDsChunk := contactIDChunkSelector(chunkNumber)
-		if len(contactIDsChunk) == 0 {
-			break
-		}
-
-		contactPhones, err := startTask.LoadContactPhones(ctx, db, contactIDsChunk)
-		if err != nil {
-			startTask.MarkStartFailed(ctx, db)
-			return errors.Wrapf(err, "error getting contact urns")
-		}
-
-		// send requests to twilio
-		for _, phone := range contactPhones {
-			form := url.Values{
-				"To":   []string{phone},
-				"From": []string{startTask.Channel()},
-			}
-
-			req, err := http.NewRequest(http.MethodPost, sendURL, strings.NewReader(form.Encode()))
-			if err != nil {
-				startTask.MarkStartFailed(ctx, db)
-				return err
-			}
-			req.SetBasicAuth(accountSID, accountToken)
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.Header.Set("Accept", "application/json")
-
-			resp, err := requestSender.Do(req)
-			if err != nil || resp.StatusCode != 201 {
-				failureCount++
-			} else {
-				successCount++
-			}
-		}
-		chunkNumber++
-
-		startTask.WithMetadata(map[string]interface{}{
-			"total_contacts":    totalContactIDs,
-			"success_count":     successCount,
-			"failure_count":     failureCount,
-			"processed_batches": chunkNumber,
-			"batch_size":        chunkSize,
-		}).UpdateMetadata(ctx, db)
-	}
-	return startTask.MarkStartComplete(ctx, db)
 }
