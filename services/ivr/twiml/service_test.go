@@ -18,14 +18,14 @@ import (
 	"github.com/nyaruka/mailroom/services/ivr/twiml"
 	"github.com/nyaruka/mailroom/testsuite"
 
-	"github.com/nyaruka/goflow/flows"
-	"github.com/stretchr/testify/assert"
-	"net/url"
-	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/gocommon/httpx"
-	"github.com/nyaruka/mailroom/testsuite/testdata"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/runtime"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
+	"github.com/stretchr/testify/assert"
+	"net/url"
 )
 
 func TestResponseForSprint(t *testing.T) {
@@ -101,7 +101,7 @@ func TestResponseForSprint(t *testing.T) {
 				events.NewIVRCreated(flows.NewMsgOut(urn, channelRef, "say something", nil, nil, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{})),
 				events.NewMsgWait(nil, nil, hints.NewAudioHint()),
 			},
-			`<Response><Say>say something</Say><Record action="http://temba.io/resume?session=1&amp;wait_type=record" maxLength="600"></Record><Redirect>http://temba.io/resume?session=1&amp;wait_type=record&amp;empty=true</Redirect></Response>`,
+			`<Response><Say>say something</Say><Record action="http://temba.io/resume?session=1&amp;wait_type=record" maxLength="600" timeout="2"></Record><Redirect>http://temba.io/resume?session=1&amp;wait_type=record&amp;empty=true</Redirect></Response>`,
 		},
 		{
 			[]flows.Event{
