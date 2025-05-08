@@ -54,8 +54,9 @@ const (
 
 	statusFailed = "failed"
 
-	gatherTimeout = 30
-	recordTimeout = 600
+	gatherTimeout        = 30
+	recordTimeout        = 600
+	recordSilenceTimeout = 2
 
 	accountSIDConfig = "account_sid"
 	authTokenConfig  = "auth_token"
@@ -555,7 +556,7 @@ func ResponseForSprint(cfg *runtime.Config, number urns.URN, resumeURL string, e
 
 			case *hints.AudioHint:
 				resumeURL = resumeURL + "&wait_type=record"
-				commands = append(commands, Record{Action: resumeURL, MaxLength: recordTimeout})
+				commands = append(commands, Record{Action: resumeURL, MaxLength: recordTimeout, Timeout: recordSilenceTimeout})
 				commands = append(commands, Redirect{URL: resumeURL + "&empty=true"})
 				r.Commands = commands
 

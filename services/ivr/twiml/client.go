@@ -43,6 +43,7 @@ type Record struct {
 	XMLName   string `xml:"Record"`
 	Action    string `xml:"action,attr,omitempty"`
 	MaxLength int    `xml:"maxLength,attr,omitempty"`
+	Timeout   int    `xml:"timeout,attr,omitempty"`
 }
 
 type Response struct {
