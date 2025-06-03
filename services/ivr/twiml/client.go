@@ -7,6 +7,7 @@ type Say struct {
 	XMLName  string `xml:"Say"`
 	Text     string `xml:",chardata"`
 	Language string `xml:"language,attr,omitempty"`
+	Voice    string `xml:"voice,attr,omitempty"`
 }
 
 type Play struct {
