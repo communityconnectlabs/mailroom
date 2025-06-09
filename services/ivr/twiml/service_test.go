@@ -55,7 +55,7 @@ func TestResponseForSprint(t *testing.T) {
 			[]flows.Event{
 				events.NewIVRCreated(flows.NewIVRMsgOut(urn, channelRef, "hello world", "eng", "")),
 			},
-			`<Response><Say language="en-US">hello world</Say><Hangup></Hangup></Response>`,
+			`<Response><Say language="en-US" voice="Google.en-US-Standard-C">hello world</Say><Hangup></Hangup></Response>`,
 		},
 		{
 			[]flows.Event{

@@ -103,6 +103,63 @@ var validLanguagesInitialCode = map[string]bool{
 	"de": true,
 }
 
+// For reference: https://www.twilio.com/docs/voice/twiml/say#voice
+var voicesMap = map[string]string{
+	"af-ZA":  "Google.af-ZA-Standard-A",
+	"ar-XA":  "Google.ar-XA-Standard-A",
+	"eu-ES":  "Google.eu-ES-Standard-B",
+	"bn-IN":  "Google.bn-IN-Standard-A",
+	"bg-BG":  "Google.bg-BG-Standard-B",
+	"ca-ES":  "Google.ca-ES-Standard-B",
+	"yue-HK": "Google.yue-HK-Standard-A",
+	"cmn-CN": "Google.cmn-CN-Standard-A",
+	"cmn-TW": "Google.cmn-TW-Standard-A",
+	"cs-CZ":  "Google.cs-CZ-Standard-B",
+	"da-DK":  "Google.da-DK-Standard-F",
+	"nl-BE":  "Google.nl-BE-Standard-C",
+	"nl-NL":  "Google.nl-NL-Standard-F",
+	"en-AU":  "Google.en-AU-Standard-A",
+	"en-IN":  "Google.en-IN-Standard-A",
+	"en-GB":  "Google.en-GB-Standard-N",
+	"en-US":  "Google.en-US-Standard-C",
+	"fil-PH": "Google.fil-PH-Standard-A",
+	"fi-FI":  "Google.fi-FI-Standard-B",
+	"fr-CA":  "Google.fr-CA-Standard-A",
+	"fr-FR":  "Google.fr-FR-Standard-F",
+	"gl-ES":  "Google.gl-ES-Standard-B",
+	"de-DE":  "Google.de-DE-Standard-G",
+	"el-GR":  "Google.el-GR-Standard-B",
+	"gu-IN":  "Google.gu-IN-Standard-A",
+	"he-IL":  "Google.he-IL-Standard-A",
+	"hi-IN":  "Google.hi-IN-Standard-A",
+	"hu-HU":  "Google.hu-HU-Standard-B",
+	"is-IS":  "Google.is-IS-Standard-B",
+	"id-ID":  "Google.id-ID-Standard-A",
+	"it-IT":  "Google.it-IT-Standard-A",
+	"ja-JP":  "Google.ja-JP-Standard-B",
+	"kn-IN":  "Google.kn-IN-Standard-A",
+	"ko-KR":  "Google.ko-KR-Standard-A",
+	"ms-MY":  "Google.ms-MY-Standard-A",
+	"ml-IN":  "Google.ml-IN-Standard-A",
+	"mr-IN":  "Google.mr-IN-Standard-A",
+	"nb-NO":  "Google.nb-NO-Standard-F",
+	"pl-PL":  "Google.pl-PL-Standard-F",
+	"pt-BR":  "Google.pt-BR-Standard-C",
+	"pt-PT":  "Google.pt-PT-Standard-E",
+	"pa-IN":  "Google.pa-IN-Standard-A",
+	"ro-RO":  "Google.ro-RO-Standard-B",
+	"ru-RU":  "Google.ru-RU-Standard-A",
+	"sk-SK":  "Google.sk-SK-Standard-B",
+	"es-ES":  "Google.es-ES-Standard-A",
+	"es-US":  "Google.es-US-Standard-A",
+	"sv-SE":  "Google.sv-SE-Standard-F",
+	"ta-IN":  "Google.ta-IN-Standard-C",
+	"te-IN":  "Google.te-IN-Standard-A",
+	"th-TH":  "Google.th-TH-Standard-A",
+	"tr-TR":  "Google.tr-TR-Standard-A",
+	"vi-VN":  "Google.vi-VN-Standard-A",
+}
+
 var indentMarshal = true
 
 type service struct {
@@ -518,6 +575,10 @@ func ResponseForSprint(cfg *runtime.Config, number urns.URN, resumeURL string, e
 				country := envs.DeriveCountryFromTel(number.Path())
 				locale := envs.NewLocale(event.Msg.TextLanguage, country)
 				languageCode := locale.ToBCP47()
+				voice, voiceFound := voicesMap[languageCode]
+				if !voiceFound {
+					voice = ""
+				}
 
 				if _, valid := validLanguageCodes[languageCode]; !valid {
 					if len(languageCode) < 2 {
@@ -529,7 +590,7 @@ func ResponseForSprint(cfg *runtime.Config, number urns.URN, resumeURL string, e
 					}
 				}
 
-				commands = append(commands, Say{Text: event.Msg.Text(), Language: languageCode})
+				commands = append(commands, Say{Text: event.Msg.Text(), Language: languageCode, Voice: voice})
 			} else {
 				for _, a := range event.Msg.Attachments() {
 					a = models.NormalizeAttachment(cfg, a)
