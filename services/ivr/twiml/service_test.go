@@ -18,14 +18,14 @@ import (
 	"github.com/nyaruka/mailroom/services/ivr/twiml"
 	"github.com/nyaruka/mailroom/testsuite"
 
-	"github.com/nyaruka/goflow/flows"
-	"github.com/stretchr/testify/assert"
-	"net/url"
-	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/gocommon/httpx"
-	"github.com/nyaruka/mailroom/testsuite/testdata"
+	"github.com/nyaruka/goflow/flows"
+	"github.com/nyaruka/mailroom/core/ivr"
 	"github.com/nyaruka/mailroom/core/models"
 	"github.com/nyaruka/mailroom/runtime"
+	"github.com/nyaruka/mailroom/testsuite/testdata"
+	"github.com/stretchr/testify/assert"
+	"net/url"
 )
 
 func TestResponseForSprint(t *testing.T) {
@@ -55,7 +55,7 @@ func TestResponseForSprint(t *testing.T) {
 			[]flows.Event{
 				events.NewIVRCreated(flows.NewIVRMsgOut(urn, channelRef, "hello world", "eng", "")),
 			},
-			`<Response><Say language="en-US">hello world</Say><Hangup></Hangup></Response>`,
+			`<Response><Say language="en-US" voice="Google.en-US-Standard-C">hello world</Say><Hangup></Hangup></Response>`,
 		},
 		{
 			[]flows.Event{
