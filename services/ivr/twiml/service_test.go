@@ -59,6 +59,36 @@ func TestResponseForSprint(t *testing.T) {
 		},
 		{
 			[]flows.Event{
+				events.NewIVRCreated(flows.NewIVRMsgOut(urn, channelRef, "hello world", "chb", "")),
+			},
+			`<Response><Say>hello world</Say><Hangup></Hangup></Response>`,
+		},
+		{
+			[]flows.Event{
+				events.NewIVRCreated(flows.NewIVRMsgOut(urn, channelRef, "xin chào thế giới", "vie", "")),
+			},
+			`<Response><Say voice="Google.vi-VN-Standard-A">xin chào thế giới</Say><Hangup></Hangup></Response>`,
+		},
+		{
+			[]flows.Event{
+				events.NewIVRCreated(flows.NewIVRMsgOut(urn, channelRef, "你好世界", "zho", "")),
+			},
+			`<Response><Say voice="Google.cmn-CN-Standard-A">你好世界</Say><Hangup></Hangup></Response>`,
+		},
+		{
+			[]flows.Event{
+				events.NewIVRCreated(flows.NewIVRMsgOut(urn, channelRef, "hello world", "chk", "")),
+			},
+			`<Response><Say>hello world</Say><Hangup></Hangup></Response>`,
+		},
+		{
+			[]flows.Event{
+				events.NewIVRCreated(flows.NewIVRMsgOut(urn, channelRef, "aloha honua", "haw", "")),
+			},
+			`<Response><Say>aloha honua</Say><Hangup></Hangup></Response>`,
+		},
+		{
+			[]flows.Event{
 				events.NewIVRCreated(flows.NewIVRMsgOut(urn, channelRef, "hello world", "ben", "")),
 			},
 			`<Response><Say>hello world</Say><Hangup></Hangup></Response>`,
