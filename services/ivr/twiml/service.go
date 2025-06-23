@@ -65,32 +65,32 @@ const (
 )
 
 var validLanguageCodes = map[string]bool{
-	"da-DK": true,
-	"de-DE": true,
-	"en-AU": true,
-	"en-CA": true,
-	"en-GB": true,
-	"en-IN": true,
-	"en-US": true,
-	"ca-ES": true,
-	"es-ES": true,
-	"es-MX": true,
-	"fi-FI": true,
-	"fr-CA": true,
-	"fr-FR": true,
-	"it-IT": true,
-	"ja-JP": true,
-	"ko-KR": true,
-	"nb-NO": true,
-	"nl-NL": true,
-	"pl-PL": true,
-	"pt-BR": true,
-	"pt-PT": true,
-	"ru-RU": true,
-	"sv-SE": true,
-	"zh-CN": true,
-	"zh-HK": true,
-	"zh-TW": true,
+	"da-DK":  true,
+	"de-DE":  true,
+	"en-AU":  true,
+	"en-CA":  true,
+	"en-GB":  true,
+	"en-IN":  true,
+	"en-US":  true,
+	"ca-ES":  true,
+	"es-ES":  true,
+	"es-MX":  true,
+	"fi-FI":  true,
+	"fr-CA":  true,
+	"fr-FR":  true,
+	"it-IT":  true,
+	"ja-JP":  true,
+	"ko-KR":  true,
+	"nb-NO":  true,
+	"nl-NL":  true,
+	"pl-PL":  true,
+	"pt-BR":  true,
+	"pt-PT":  true,
+	"ru-RU":  true,
+	"sv-SE":  true,
+	"cmn-CN": true,
+	"cmn-TW": true,
+	"yue-HK": true,
 }
 
 // For reference: https://www.twilio.com/docs/voice/twiml/say#attributes-language
@@ -111,8 +111,7 @@ var voicesMap = map[string]string{
 	"bg-BG":  "Google.bg-BG-Standard-B",
 	"ca-ES":  "Google.ca-ES-Standard-B",
 	"yue-HK": "Google.yue-HK-Standard-A",
-	"cmn-CN": "Google.cmn-CN-Standard-A",
-	"cmn-TW": "Google.cmn-TW-Standard-A",
+	"zh-CN":  "Google.cmn-CN-Standard-A",
 	"cs-CZ":  "Google.cs-CZ-Standard-B",
 	"da-DK":  "Google.da-DK-Standard-F",
 	"nl-BE":  "Google.nl-BE-Standard-C",
@@ -157,6 +156,12 @@ var voicesMap = map[string]string{
 	"th-TH":  "Google.th-TH-Standard-A",
 	"tr-TR":  "Google.tr-TR-Standard-A",
 	"vi-VN":  "Google.vi-VN-Standard-A",
+}
+
+var languageCountryCodes = map[string]envs.Country{
+	"vie": envs.Country("VN"),
+	"zho": envs.Country("CN"),
+	"yue": envs.Country("HK"),
 }
 
 var indentMarshal = true
@@ -571,7 +576,11 @@ func ResponseForSprint(cfg *runtime.Config, number urns.URN, resumeURL string, e
 		switch event := e.(type) {
 		case *events.IVRCreatedEvent:
 			if len(event.Msg.Attachments()) == 0 {
-				country := envs.DeriveCountryFromTel(number.Path())
+				country, countryFound := languageCountryCodes[string(event.Msg.TextLanguage)]
+				if !countryFound {
+					country = envs.DeriveCountryFromTel(number.Path())
+				}
+
 				locale := envs.NewLocale(event.Msg.TextLanguage, country)
 				languageCode := locale.ToBCP47()
 				voice, voiceFound := voicesMap[languageCode]
