@@ -163,6 +163,9 @@ var languageCountryCodes = map[string]envs.Country{
 	"vie": envs.Country("VN"),
 	"zho": envs.Country("CN"),
 	"yue": envs.Country("HK"),
+	"kor": envs.Country("KR"),
+	"rus": envs.Country("RU"),
+	"tai": envs.Country("TH"),
 }
 
 var indentMarshal = true
