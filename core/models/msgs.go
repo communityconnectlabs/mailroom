@@ -346,6 +346,11 @@ func NewOutgoingBroadcastMsg(rt *runtime.Runtime, org *Org, channel *Channel, co
 	return newOutgoingMsg(rt, org, channel, contactID, out, createdOn, nil, nil, broadcastID)
 }
 
+// NewOutgoingChatMsg creates an outgoing message from chat
+func NewOutgoingChatMsg(rt *runtime.Runtime, org *Org, channel *Channel, contactID ContactID, out *flows.MsgOut, createdOn time.Time) (*Msg, error) {
+	return newOutgoingMsg(rt, org, channel, contactID, out, createdOn, nil, nil, NilBroadcastID)
+}
+
 func newOutgoingMsg(rt *runtime.Runtime, org *Org, channel *Channel, contactID ContactID, out *flows.MsgOut, createdOn time.Time, session *Session, flow *Flow, broadcastID BroadcastID) (*Msg, error) {
 	msg := &Msg{}
 	m := &msg.m
@@ -1282,6 +1287,21 @@ func ResendMessages(ctx context.Context, db Queryer, rp *redis.Pool, oa *OrgAsse
 	}
 
 	return resent, nil
+}
+
+func NewMsgOut(oa *OrgAssets, c *flows.Contact, text string, attachments []utils.Attachment, qrs []string) (*flows.MsgOut, *Channel) {
+	// resolve URN + channel for this contact
+	urn := urns.NilURN
+	var channel *Channel
+	var channelRef *assets.ChannelReference
+	for _, dest := range c.ResolveDestinations(false, "") {
+		urn = dest.URN.URN()
+		channel = oa.ChannelByUUID(dest.Channel.UUID())
+		channelRef = dest.Channel.Reference()
+		break
+	}
+
+	return flows.NewMsgOut(urn, channelRef, text, attachments, qrs, nil, flows.NilMsgTopic, "", flows.ShareableIconsConfig{}), channel
 }
 
 // MarkBroadcastSent marks the passed in broadcast as sent
