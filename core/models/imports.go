@@ -376,7 +376,7 @@ func (b *ContactImportBatch) markComplete(ctx context.Context, db Queryer, impor
 		for _, e := range imp.errors {
 			importErrors = append(importErrors, importError{Record: imp.record, Row: imp.spec.ImportRow, Message: e})
 		}
-		if imp.contact != nil && (imp.contact.Status() == ContactStatusBlocked) {
+		if imp.contact != nil && (imp.contact.Status() == ContactStatusBlocked || imp.contact.Status() == ContactStatusStopped) {
 			blockedUUIDs = append(blockedUUIDs, imp.contact.UUID())
 		}
 
