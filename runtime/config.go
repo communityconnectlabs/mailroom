@@ -21,7 +21,7 @@ type Config struct {
 	DB         string `validate:"url,startswith=postgres:"           help:"URL for your Postgres database"`
 	ReadonlyDB string `validate:"omitempty,url,startswith=postgres:" help:"URL of optional connection to readonly database instance"`
 	DBPoolSize int    `                                              help:"the size of our db pool"`
-	Redis      string `validate:"url,startswith=redis:"              help:"URL for your Redis instance"`
+	Redis      string `validate:"url,startswith=redis"              help:"URL for your Redis instance"`
 	Elastic    string `validate:"url"                                help:"URL for your ElasticSearch service"`
 	SentryDSN  string `                                              help:"the DSN used for logging errors to Sentry"`
 
