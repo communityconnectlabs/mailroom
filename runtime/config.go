@@ -14,6 +14,7 @@ import (
 
 func init() {
 	utils.RegisterValidatorAlias("session_storage", "eq=db|eq=s3", func(e validator.FieldError) string { return "is not a valid session storage mode" })
+	utils.RegisterValidatorAlias("redis_scheme", "startswith=redis://|startswith=rediss://", func(e validator.FieldError) string { return "must be a redis:// or rediss:// URL" })
 }
 
 // Config is our top level configuration object
@@ -21,7 +22,7 @@ type Config struct {
 	DB         string `validate:"url,startswith=postgres:"           help:"URL for your Postgres database"`
 	ReadonlyDB string `validate:"omitempty,url,startswith=postgres:" help:"URL of optional connection to readonly database instance"`
 	DBPoolSize int    `                                              help:"the size of our db pool"`
-	Redis      string `validate:"url,startswith=redis:"              help:"URL for your Redis instance"`
+	Redis      string `validate:"url,redis_scheme"                  help:"URL for your Redis instance"`
 	Elastic    string `validate:"url"                                help:"URL for your ElasticSearch service"`
 	SentryDSN  string `                                              help:"the DSN used for logging errors to Sentry"`
 
