@@ -23,7 +23,7 @@ func TestValidate(t *testing.T) {
 	c = runtime.NewDefaultConfig()
 	c.DB = "mysql://temba:temba@localhost/temba"
 	c.Redis = "bluedis://localhost:6379/15"
-	assert.EqualError(t, c.Validate(), "field 'DB' must start with 'postgres:', field 'Redis' must start with 'redis:'")
+	assert.EqualError(t, c.Validate(), "field 'DB' must start with 'postgres:', field 'Redis' must be a redis:// or rediss:// URL")
 }
 
 func TestParseDisallowedNetworks(t *testing.T) {

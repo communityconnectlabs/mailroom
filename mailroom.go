@@ -2,7 +2,9 @@ package mailroom
 
 import (
 	"context"
+	"crypto/tls"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -226,13 +228,28 @@ func openAndCheckDBConnection(url string, maxOpenConns int) (*sqlx.DB, error) {
 func openAndCheckRedisPool(redisUrl string) (*redis.Pool, error) {
 	redisURL, _ := url.Parse(redisUrl)
 
+	if redisURL.Scheme == "rediss" && os.Getenv("REDIS_TLS_SKIP_VERIFY") == "1" {
+		logrus.Warn("REDIS_TLS_SKIP_VERIFY=1: Redis TLS certificate verification is disabled — for local self-signed testing only, never production")
+	}
+
 	rp := &redis.Pool{
 		Wait:        true,              // makes callers wait for a connection
 		MaxActive:   36,                // only open this many concurrent connections at once
 		MaxIdle:     4,                 // only keep up to this many idle
 		IdleTimeout: 240 * time.Second, // how long to wait before reaping a connection
 		Dial: func() (redis.Conn, error) {
-			conn, err := redis.Dial("tcp", redisURL.Host)
+			// Enable TLS when the URL uses the rediss:// scheme (e.g. ElastiCache
+			// in-transit encryption). Verification is on by default; set
+			// REDIS_TLS_SKIP_VERIFY=1 only for local self-signed testing.
+			var dialOpts []redis.DialOption
+			if redisURL.Scheme == "rediss" {
+					tlsConfig := &tls.Config{ServerName: redisURL.Hostname(), MinVersion: tls.VersionTLS12}
+				if os.Getenv("REDIS_TLS_SKIP_VERIFY") == "1" {
+					tlsConfig.InsecureSkipVerify = true
+				}
+				dialOpts = append(dialOpts, redis.DialUseTLS(true), redis.DialTLSConfig(tlsConfig))
+			}
+			conn, err := redis.Dial("tcp", redisURL.Host, dialOpts...)
 			if err != nil {
 				return nil, err
 			}
