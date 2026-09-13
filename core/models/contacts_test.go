@@ -509,6 +509,27 @@ func TestUpdateContactLastSeenAndModifiedOn(t *testing.T) {
 	assert.True(t, cathy.ModifiedOn().After(t2))
 }
 
+func TestUpdateContactModifiedOnUnorderedIDs(t *testing.T) {
+	ctx, _, db, _ := testsuite.Get()
+
+	defer testsuite.Reset(testsuite.ResetAll)
+
+	ids := []models.ContactID{testdata.George.ID, testdata.Cathy.ID, testdata.Bob.ID}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] > ids[j] })
+	unsorted := make([]models.ContactID, len(ids))
+	copy(unsorted, ids)
+
+	t0 := time.Now()
+
+	err := models.UpdateContactModifiedOn(ctx, db, ids)
+	assert.NoError(t, err)
+
+	assertdb.Query(t, db, `SELECT count(*) FROM contacts_contact WHERE modified_on > $1`, t0).Returns(3)
+
+	// the caller's slice must not be reordered under it
+	assert.Equal(t, unsorted, ids)
+}
+
 func TestUpdateContactModifiedBy(t *testing.T) {
 	ctx, _, db, _ := testsuite.Get()
 
