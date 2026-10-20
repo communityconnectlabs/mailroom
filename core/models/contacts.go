@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"time"
 
@@ -1318,10 +1319,20 @@ func updateURNChannelPriority(urn urns.URN, channel *Channel, priority int) (urn
 	return urn, nil
 }
 
+// locks the rows by ascending id so concurrent transactions with overlapping contacts can't deadlock
+const sqlUpdateContactModifiedOn = `
+  UPDATE contacts_contact SET modified_on = NOW()
+   WHERE id IN (SELECT id FROM contacts_contact WHERE id = ANY($1) ORDER BY id FOR UPDATE)`
+
 // UpdateContactModifiedOn updates modified_on the passed in contacts
 func UpdateContactModifiedOn(ctx context.Context, db Queryer, contactIDs []ContactID) error {
-	for _, idBatch := range chunkContactIDs(contactIDs, 100) {
-		_, err := db.ExecContext(ctx, `UPDATE contacts_contact SET modified_on = NOW() WHERE id = ANY($1)`, pq.Array(idBatch))
+	// callers build this slice by ranging a map, so the order is random on every run
+	sorted := make([]ContactID, len(contactIDs))
+	copy(sorted, contactIDs)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+
+	for _, idBatch := range chunkContactIDs(sorted, 100) {
+		_, err := db.ExecContext(ctx, sqlUpdateContactModifiedOn, pq.Array(idBatch))
 		if err != nil {
 			return errors.Wrap(err, "error updating modified_on for contact batch")
 		}
